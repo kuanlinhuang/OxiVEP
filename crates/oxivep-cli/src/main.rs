@@ -64,6 +64,10 @@ enum Commands {
         /// Upstream/downstream distance (bp)
         #[arg(long, default_value_t = 5000)]
         distance: u64,
+
+        /// Path to VEP cache directory for known variant annotation
+        #[arg(long)]
+        cache_dir: Option<String>,
     },
 
     /// Launch the web interface for interactive variant annotation
@@ -115,6 +119,7 @@ fn main() -> Result<()> {
             hgvs,
             canonical: _,
             distance,
+            cache_dir,
         } => {
             pipeline::run_annotate(pipeline::AnnotateConfig {
                 input,
@@ -125,6 +130,7 @@ fn main() -> Result<()> {
                 pick,
                 hgvs,
                 distance,
+                cache_dir,
             })?;
         }
         Commands::Web { port, gff3, fasta } => {

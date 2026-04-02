@@ -2,9 +2,9 @@ mod coding;
 mod genomic;
 mod protein;
 
-pub use coding::hgvsc;
+pub use coding::{hgvsc, hgvsc_with_seq, hgvsc_intronic, hgvsc_intronic_range, hgvsc_noncoding, hgvsc_noncoding_intronic, hgvsc_noncoding_intronic_range};
 pub use genomic::hgvsg;
-pub use protein::hgvsp;
+pub use protein::{hgvsp, hgvsp_frameshift};
 
 /// Full HGVS annotation result.
 #[derive(Debug, Clone, Default)]

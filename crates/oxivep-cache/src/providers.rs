@@ -1,5 +1,9 @@
 use anyhow::Result;
 use oxivep_genome::Transcript;
+use std::collections::HashMap;
+
+use crate::info::CacheInfo;
+use crate::variation::{self, VariationTabixReader};
 
 /// Trait for providing transcript annotations for a genomic region.
 pub trait TranscriptProvider: Send + Sync {
@@ -66,6 +70,108 @@ impl SequenceProvider for FastaSequenceProvider {
     }
 }
 
+/// A matched known variant with its allele-specific frequency data.
+#[derive(Debug, Clone)]
+pub struct MatchedVariant {
+    pub name: String,
+    pub matched_allele: String,
+    pub minor_allele: Option<String>,
+    pub minor_allele_freq: Option<f64>,
+    pub clin_sig: Option<String>,
+    pub somatic: bool,
+    pub phenotype_or_disease: bool,
+    pub pubmed: Vec<String>,
+    /// Population → allele-specific frequency for the matched allele.
+    pub frequencies: HashMap<String, f64>,
+}
+
+/// Trait for providing co-located known variant annotations.
+pub trait VariationProvider {
+    /// Look up known variants overlapping a position that match the given alleles.
+    fn get_matched_variants(
+        &self,
+        chrom: &str,
+        start: u64,
+        end: u64,
+        ref_allele: &str,
+        alt_allele: &str,
+    ) -> Result<Vec<MatchedVariant>>;
+}
+
+/// Variation provider backed by VEP's tabix-indexed cache files.
+pub struct TabixVariationProvider {
+    reader: VariationTabixReader,
+}
+
+impl TabixVariationProvider {
+    /// Create a provider from a VEP cache directory.
+    ///
+    /// Reads `info.txt` for column definitions and valid chromosomes.
+    pub fn new(cache_dir: &std::path::Path, cache_info: &CacheInfo) -> Result<Self> {
+        let reader = VariationTabixReader::new(
+            cache_dir,
+            &cache_info.variation_cols,
+            &cache_info.valid_chromosomes,
+        )?;
+        Ok(Self { reader })
+    }
+}
+
+impl VariationProvider for TabixVariationProvider {
+    fn get_matched_variants(
+        &self,
+        chrom: &str,
+        start: u64,
+        end: u64,
+        ref_allele: &str,
+        alt_allele: &str,
+    ) -> Result<Vec<MatchedVariant>> {
+        let records = self.reader.query(chrom, start, end)?;
+        let mut matched = Vec::new();
+
+        for record in &records {
+            // Skip failed variants
+            if record.failed {
+                continue;
+            }
+
+            // Check allele match
+            if let Some(matched_alt) = variation::match_alleles(
+                ref_allele, alt_allele, start, end, record,
+            ) {
+                // Extract per-allele frequencies for the matched allele
+                let mut freqs = HashMap::new();
+                for (pop, freq_str) in &record.frequencies {
+                    if let Some(f) = variation::get_allele_freq(freq_str, &matched_alt) {
+                        freqs.insert(pop.clone(), f);
+                    }
+                }
+
+                // Also include MAF if minor_allele matches
+                if let (Some(ref ma), Some(maf)) = (&record.minor_allele, record.minor_allele_freq) {
+                    if ma.eq_ignore_ascii_case(&matched_alt) {
+                        freqs.entry("minor_allele_freq".into()).or_insert(maf);
+                    }
+                }
+
+                matched.push(MatchedVariant {
+                    name: record.variation_name.clone(),
+                    matched_allele: matched_alt,
+                    minor_allele: record.minor_allele.clone(),
+                    minor_allele_freq: record.minor_allele_freq,
+                    clin_sig: record.clin_sig.clone(),
+                    somatic: record.somatic,
+                    phenotype_or_disease: record.phenotype_or_disease,
+                    pubmed: record.pubmed.clone(),
+                    frequencies: freqs,
+                });
+            }
+        }
+
+        Ok(matched)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,6 +181,7 @@ mod tests {
     fn make_transcript(chrom: &str, start: u64, end: u64) -> Transcript {
         Transcript {
             stable_id: format!("ENST_{}", start),
+            version: None,
             gene: Gene {
                 stable_id: "ENSG_1".into(),
                 symbol: None,
@@ -115,12 +222,15 @@ mod tests {
             appris: None,
             ccds: None,
             protein_id: None,
+            protein_version: None,
             swissprot: vec![],
             trembl: vec![],
             uniparc: vec![],
             refseq_id: None,
             source: None,
             gencode_primary: false,
+            flags: vec![],
+            codon_table_start_phase: 0,
         }
     }
 

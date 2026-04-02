@@ -46,12 +46,21 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
                     .unwrap_or_default();
                 // Strip "gene:" prefix if present (Ensembl GFF3)
                 let gene_id = gene_id.strip_prefix("gene:").unwrap_or(&gene_id).to_string();
-                let symbol = attrs.get("Name").cloned();
+                let symbol = attrs.get("Name")
+                    .or_else(|| attrs.get("gene"))
+                    .cloned();
                 let biotype = attrs
                     .get("biotype")
                     .or_else(|| attrs.get("gene_biotype"))
                     .cloned()
-                    .unwrap_or_else(|| "unknown".to_string());
+                    .unwrap_or_else(|| {
+                        // NCBI GFF3 uses "protein_coding" in gene_biotype or infers from feature type
+                        if feature_type == "pseudogene" {
+                            "pseudogene".to_string()
+                        } else {
+                            "protein_coding".to_string()
+                        }
+                    });
 
                 genes.insert(
                     gene_id.clone(),
@@ -89,7 +98,19 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
                     .or_else(|| attrs.get("transcript_biotype"))
                     .cloned()
                     .unwrap_or_else(|| feature_type.to_string());
-                let canonical = attrs.get("tag").map(|t| t.contains("Ensembl_canonical")).unwrap_or(false);
+                let tag_str = attrs.get("tag").cloned().unwrap_or_default();
+                let canonical = tag_str.contains("Ensembl_canonical");
+
+                // Parse CDS completeness flags from tags
+                let mut flags = Vec::new();
+                if tag_str.contains("cds_end_NF") {
+                    flags.push("cds_end_NF".to_string());
+                }
+                if tag_str.contains("cds_start_NF") {
+                    flags.push("cds_start_NF".to_string());
+                }
+
+                let version: Option<u32> = attrs.get("version").and_then(|v| v.parse().ok());
 
                 transcripts.insert(
                     transcript_id.clone(),
@@ -102,6 +123,8 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
                         end,
                         strand,
                         canonical,
+                        flags,
+                        version,
                     },
                 );
             }
@@ -139,19 +162,27 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
                     .strip_prefix("transcript:")
                     .unwrap_or(&parent)
                     .to_string();
+                // Protein ID: prefer explicit protein_id attribute (NCBI format),
+                // then fall back to ID with prefix stripping (Ensembl format)
                 let protein_id = attrs
-                    .get("ID")
-                    .or_else(|| attrs.get("protein_id"))
+                    .get("protein_id")
                     .cloned()
+                    .or_else(|| {
+                        attrs.get("ID").map(|id| {
+                            id.strip_prefix("CDS:")
+                                .or_else(|| id.strip_prefix("cds-"))
+                                .unwrap_or(id)
+                                .to_string()
+                        })
+                    })
                     .unwrap_or_default();
-                let protein_id = protein_id
-                    .strip_prefix("CDS:")
-                    .unwrap_or(&protein_id)
-                    .to_string();
+
+                let protein_version: Option<u32> = attrs.get("version").and_then(|v| v.parse().ok());
 
                 cds_features.push(GffCds {
                     parent_transcript: parent,
                     protein_id,
+                    protein_version,
                     start,
                     end,
                     strand,
@@ -159,6 +190,77 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
                 });
             }
             _ => {}
+        }
+    }
+
+    // For NCBI GFF3 format: create implicit transcripts for genes that have
+    // CDS children but no transcript/mRNA children (common in bacterial genomes).
+    let genes_with_transcripts: std::collections::HashSet<String> = transcripts
+        .values()
+        .map(|t| t.parent_gene.clone())
+        .collect();
+
+    for cds in &cds_features {
+        let parent = &cds.parent_transcript;
+        // If the CDS parent is a gene (not a transcript), create an implicit transcript
+        if !transcripts.contains_key(parent) && genes.contains_key(parent) {
+            // Strip "gene-" prefix if present (NCBI format)
+            let gene_id = parent.strip_prefix("gene-").unwrap_or(parent);
+            let gene = &genes[parent];
+            let implicit_tid = format!("{}_t1", gene_id);
+            if !transcripts.contains_key(&implicit_tid) {
+                transcripts.insert(
+                    implicit_tid.clone(),
+                    GffTranscript {
+                        id: implicit_tid,
+                        parent_gene: parent.clone(),
+                        biotype: gene.biotype.clone(),
+                        chromosome: gene.chromosome.clone(),
+                        start: gene.start,
+                        end: gene.end,
+                        strand: gene.strand,
+                        canonical: true,
+                        flags: vec![],
+                        version: None,
+                    },
+                );
+            }
+        }
+    }
+
+    // Remap CDS features whose parent is a gene to the implicit transcript
+    for cds in &mut cds_features {
+        let parent = &cds.parent_transcript;
+        if !transcripts.contains_key(parent) {
+            // Try with gene- prefix stripped
+            let gene_id = parent.strip_prefix("gene-").unwrap_or(parent);
+            let implicit_tid = format!("{}_t1", gene_id);
+            if transcripts.contains_key(&implicit_tid) {
+                cds.parent_transcript = implicit_tid;
+            }
+        }
+    }
+
+    // Create implicit exons for CDS features under implicit transcripts
+    // that have no corresponding exon (bacterial genomes where CDS = exon)
+    for cds in &cds_features {
+        // Only create implicit exons for implicit transcripts (those ending in _t1)
+        if !cds.parent_transcript.ends_with("_t1") {
+            continue;
+        }
+        let has_exon = exons.iter().any(|e| {
+            e.parent_transcript == cds.parent_transcript
+        });
+        if !has_exon {
+            exons.push(GffExon {
+                id: format!("exon_{}_{}_{}", cds.parent_transcript, cds.start, cds.end),
+                parent_transcript: cds.parent_transcript.clone(),
+                start: cds.start,
+                end: cds.end,
+                strand: cds.strand,
+                phase: cds.phase,
+                rank: 0,
+            });
         }
     }
 
@@ -224,6 +326,26 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
             .iter()
             .filter(|c| c.parent_transcript == *tid)
             .collect();
+
+        // Find the phase of the first CDS in transcript order and convert to Ensembl phase.
+        // GFF3 phase → Ensembl phase: 0→0, 1→2, 2→1
+        // Ensembl phase on the starting exon indicates how many bases from the
+        // previous exon are needed to complete the first codon. For incomplete CDS
+        // (cds_start_NF), this means the CDS numbering should account for those
+        // "missing" bases, effectively shifting cdna_coding_start earlier.
+        let first_cds_ensembl_phase: u64 = if !tr_cds.is_empty() {
+            let gff_phase = match gff_tr.strand {
+                Strand::Forward => tr_cds.iter().min_by_key(|c| c.start).map(|c| c.phase).unwrap_or(0),
+                Strand::Reverse => tr_cds.iter().max_by_key(|c| c.end).map(|c| c.phase).unwrap_or(0),
+            };
+            match gff_phase {
+                1 => 2,
+                2 => 1,
+                other => other as u64,
+            }
+        } else {
+            0
+        };
 
         let translation = if !tr_cds.is_empty() {
             let protein_id = tr_cds[0].protein_id.clone();
@@ -323,6 +445,9 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
                 }
                 cdna_pos += exon_len;
             }
+            // Note: first_cds_ensembl_phase is stored on the Transcript and
+            // applied in cdna_to_cds() to account for incomplete CDS starts.
+
             (cs, ce)
         } else {
             (None, None)
@@ -330,6 +455,7 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
 
         result.push(Transcript {
             stable_id: tid.clone(),
+            version: gff_tr.version,
             gene: gene_model,
             biotype: gff_tr.biotype.clone(),
             chromosome: gff_tr.chromosome.clone(),
@@ -363,12 +489,21 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
                 .iter()
                 .find(|c| c.parent_transcript == *tid)
                 .map(|c| c.protein_id.clone()),
+            // VEP hardcodes protein version to 1 when loading from GFF3
+            // (see BaseGXF.pm line 731: -VERSION => 1)
+            protein_version: if cds_features.iter().any(|c| c.parent_transcript == *tid) {
+                Some(1)
+            } else {
+                None
+            },
             swissprot: vec![],
             trembl: vec![],
             uniparc: vec![],
             refseq_id: None,
             source: Some("GFF3".into()),
             gencode_primary: false,
+            flags: gff_tr.flags.clone(),
+            codon_table_start_phase: first_cds_ensembl_phase,
         });
     }
 
@@ -428,6 +563,8 @@ struct GffTranscript {
     end: u64,
     strand: Strand,
     canonical: bool,
+    flags: Vec<String>,
+    version: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -446,6 +583,7 @@ struct GffExon {
 struct GffCds {
     parent_transcript: String,
     protein_id: String,
+    protein_version: Option<u32>,
     start: u64,
     end: u64,
     strand: Strand,

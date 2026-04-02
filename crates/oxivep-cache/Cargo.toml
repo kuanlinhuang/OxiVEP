@@ -13,3 +13,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 flate2 = { workspace = true }
 log = { workspace = true }
+noodles-bgzf = { workspace = true }
+noodles-core = { workspace = true }
+noodles-tabix = { workspace = true }
+noodles-csi = { workspace = true }

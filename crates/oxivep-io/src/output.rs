@@ -12,7 +12,7 @@ pub fn format_csq(vf: &VariationFeature, fields: &[&str]) -> String {
 
     for tv in &vf.transcript_variations {
         for aa in &tv.allele_annotations {
-            let entry = format_csq_entry(tv, aa, fields);
+            let entry = format_csq_entry(vf, tv, aa, fields);
             entries.push(entry);
         }
     }
@@ -20,7 +20,12 @@ pub fn format_csq(vf: &VariationFeature, fields: &[&str]) -> String {
     entries.join(",")
 }
 
-fn format_csq_entry(tv: &TranscriptVariation, aa: &AlleleAnnotation, fields: &[&str]) -> String {
+fn format_csq_entry(
+    vf: &VariationFeature,
+    tv: &TranscriptVariation,
+    aa: &AlleleAnnotation,
+    fields: &[&str],
+) -> String {
     let mut parts = Vec::new();
 
     for field in fields {
@@ -54,7 +59,14 @@ fn format_csq_entry(tv: &TranscriptVariation, aa: &AlleleAnnotation, fields: &[&
             "Amino_acids" => aa
                 .amino_acids
                 .as_ref()
-                .map(|(r, a)| format!("{}/{}", r, a))
+                .map(|(r, a)| {
+                    if r == a {
+                        // VEP shows just the amino acid for synonymous variants
+                        r.clone()
+                    } else {
+                        format!("{}/{}", r, a)
+                    }
+                })
                 .unwrap_or_default(),
             "Codons" => aa
                 .codons
@@ -62,14 +74,43 @@ fn format_csq_entry(tv: &TranscriptVariation, aa: &AlleleAnnotation, fields: &[&
                 .map(|(r, a)| format!("{}/{}", r, a))
                 .unwrap_or_default(),
             "Existing_variation" => aa.existing_variation.join("&"),
+            "REF_ALLELE" => vf.ref_allele.to_string(),
+            "UPLOADED_ALLELE" => {
+                // Show original VCF alleles if available, otherwise normalized
+                if let Some(ref vcf) = vf.vcf_fields {
+                    format!("{}/{}", vcf.ref_allele, vcf.alt)
+                } else {
+                    format!("{}/{}", vf.ref_allele, aa.allele)
+                }
+            }
             "DISTANCE" => aa
                 .distance
                 .map(|d| d.to_string())
                 .unwrap_or_default(),
             "STRAND" => format!("{}", tv.strand.as_int()),
+            "FLAGS" => {
+                let flags = &tv.flags;
+                if flags.is_empty() {
+                    String::new()
+                } else {
+                    flags.join("&")
+                }
+            }
             "CANONICAL" => {
                 if tv.canonical {
                     "YES".to_string()
+                } else {
+                    String::new()
+                }
+            }
+            "SYMBOL_SOURCE" => tv.symbol_source.clone().unwrap_or_default(),
+            "HGNC_ID" => tv.hgnc_id.clone().unwrap_or_default(),
+            "MANE" => {
+                // MANE field is the label: "MANE_Select" or "MANE_Plus_Clinical"
+                if tv.mane_select.is_some() {
+                    "MANE_Select".to_string()
+                } else if tv.mane_plus_clinical.is_some() {
+                    "MANE_Plus_Clinical".to_string()
                 } else {
                     String::new()
                 }
@@ -82,6 +123,36 @@ fn format_csq_entry(tv: &TranscriptVariation, aa: &AlleleAnnotation, fields: &[&
             "ENSP" => tv.protein_id.clone().unwrap_or_default(),
             "SIFT" => aa.sift.clone().unwrap_or_default(),
             "PolyPhen" => aa.polyphen.clone().unwrap_or_default(),
+            "AF" => {
+                // Use the first matched known variant's gnomAD or minor_allele_freq
+                vf.existing_variants.iter().find_map(|kv| {
+                    kv.frequencies.get("gnomAD")
+                        .or_else(|| kv.frequencies.get("gnomADe"))
+                        .or_else(|| kv.frequencies.get("minor_allele_freq"))
+                        .map(|f| format!("{}", f))
+                }).unwrap_or_default()
+            }
+            "CLIN_SIG" => {
+                vf.existing_variants.iter()
+                    .filter_map(|kv| kv.clinical_significance.as_ref())
+                    .next()
+                    .cloned()
+                    .unwrap_or_default()
+            }
+            "SOMATIC" => {
+                let any_somatic = vf.existing_variants.iter().any(|kv| kv.somatic);
+                if any_somatic { "1".to_string() } else { String::new() }
+            }
+            "PHENO" => {
+                let any_pheno = vf.existing_variants.iter().any(|kv| kv.phenotype_or_disease);
+                if any_pheno { "1".to_string() } else { String::new() }
+            }
+            "PUBMED" => {
+                let pubs: Vec<&str> = vf.existing_variants.iter()
+                    .flat_map(|kv| kv.pubmed.iter().map(|s| s.as_str()))
+                    .collect();
+                pubs.join("&")
+            }
             "SOURCE" => tv.source.clone().unwrap_or_default(),
             _ => String::new(),
         };
@@ -96,6 +167,7 @@ fn escape_csq_value(value: &str) -> String {
     value
         .replace(',', "&")
         .replace(';', "%3B")
+        .replace('=', "%3D")
         .replace('|', "&")
         .replace(' ', "_")
 }
@@ -108,7 +180,7 @@ fn format_position_range(pos: Option<(u64, u64)>) -> String {
     }
 }
 
-/// Default CSQ fields used by VEP.
+/// Default CSQ fields matching Ensembl VEP's extended output format (42 fields).
 pub const DEFAULT_CSQ_FIELDS: &[&str] = &[
     "Allele",
     "Consequence",
@@ -128,8 +200,30 @@ pub const DEFAULT_CSQ_FIELDS: &[&str] = &[
     "Amino_acids",
     "Codons",
     "Existing_variation",
+    "REF_ALLELE",
+    "UPLOADED_ALLELE",
     "DISTANCE",
     "STRAND",
+    "FLAGS",
+    "SYMBOL_SOURCE",
+    "HGNC_ID",
+    "MANE",
+    "MANE_SELECT",
+    "MANE_PLUS_CLINICAL",
+    "TSL",
+    "APPRIS",
+    "SIFT",
+    "PolyPhen",
+    "AF",
+    "CLIN_SIG",
+    "SOMATIC",
+    "PHENO",
+    "PUBMED",
+    "MOTIF_NAME",
+    "MOTIF_POS",
+    "HIGH_INF_POS",
+    "MOTIF_SCORE_CHANGE",
+    "TRANSCRIPTION_FACTORS",
 ];
 
 /// Generate the VCF INFO header line for CSQ.
@@ -167,8 +261,13 @@ pub fn format_tab_line(vf: &VariationFeature) -> Vec<String> {
                 .collect::<Vec<_>>()
                 .join(",");
 
+            let impact_str = format!("{:?}", aa.impact).to_uppercase();
+            let distance_str = aa.distance.map(|d| d.to_string()).unwrap_or("-".to_string());
+            let strand_str = format!("{}", tv.strand.as_int());
+            let flags_str = if tv.canonical { "canonical" } else { "-" };
+
             let line = format!(
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                 uploaded_variation,
                 location,
                 aa.allele,
@@ -182,12 +281,16 @@ pub fn format_tab_line(vf: &VariationFeature) -> Vec<String> {
                 aa.amino_acids
                     .as_ref()
                     .map(|(r, a)| format!("{}/{}", r, a))
-                    .unwrap_or_default(),
+                    .unwrap_or("-".to_string()),
                 aa.codons
                     .as_ref()
                     .map(|(r, a)| format!("{}/{}", r, a))
-                    .unwrap_or_default(),
-                aa.existing_variation.join(","),
+                    .unwrap_or("-".to_string()),
+                if aa.existing_variation.is_empty() { "-".to_string() } else { aa.existing_variation.join(",") },
+                impact_str,
+                distance_str,
+                strand_str,
+                flags_str,
             );
             lines.push(line);
         }
@@ -225,7 +328,7 @@ pub fn format_json(vf: &VariationFeature) -> serde_json::Value {
         "allele_string".into(),
         serde_json::Value::String(vf.allele_string.clone()),
     );
-    obj.insert("strand".into(), serde_json::Value::Number(1.into()));
+    obj.insert("strand".into(), serde_json::Value::Number(vf.position.strand.as_int().into()));
 
     if let Some(ref msq) = vf.most_severe_consequence {
         obj.insert(
@@ -275,6 +378,50 @@ pub fn format_json(vf: &VariationFeature) -> serde_json::Value {
                     "variant_allele".into(),
                     serde_json::Value::String(aa.allele.to_string()),
                 );
+                tc.insert(
+                    "strand".into(),
+                    serde_json::Value::Number(tv.strand.as_int().into()),
+                );
+                if tv.canonical {
+                    tc.insert("canonical".into(), serde_json::Value::Number(1.into()));
+                }
+                if let Some((s, e)) = aa.cdna_position {
+                    tc.insert("cdna_start".into(), serde_json::Value::Number(s.into()));
+                    tc.insert("cdna_end".into(), serde_json::Value::Number(e.into()));
+                }
+                if let Some((s, e)) = aa.cds_position {
+                    tc.insert("cds_start".into(), serde_json::Value::Number(s.into()));
+                    tc.insert("cds_end".into(), serde_json::Value::Number(e.into()));
+                }
+                if let Some((s, e)) = aa.protein_position {
+                    tc.insert("protein_start".into(), serde_json::Value::Number(s.into()));
+                    tc.insert("protein_end".into(), serde_json::Value::Number(e.into()));
+                }
+                if let Some(ref aas) = aa.amino_acids {
+                    tc.insert("amino_acids".into(),
+                        serde_json::Value::String(format!("{}/{}", aas.0, aas.1)));
+                }
+                if let Some(ref cdns) = aa.codons {
+                    tc.insert("codons".into(),
+                        serde_json::Value::String(format!("{}/{}", cdns.0, cdns.1)));
+                }
+                if let Some((n, t)) = aa.exon {
+                    tc.insert("exon".into(),
+                        serde_json::Value::String(format!("{}/{}", n, t)));
+                }
+                if let Some((n, t)) = aa.intron {
+                    tc.insert("intron".into(),
+                        serde_json::Value::String(format!("{}/{}", n, t)));
+                }
+                if let Some(ref h) = aa.hgvsc {
+                    tc.insert("hgvsc".into(), serde_json::Value::String(h.clone()));
+                }
+                if let Some(ref h) = aa.hgvsp {
+                    tc.insert("hgvsp".into(), serde_json::Value::String(h.clone()));
+                }
+                if let Some(d) = aa.distance {
+                    tc.insert("distance".into(), serde_json::Value::Number(d.into()));
+                }
                 serde_json::Value::Object(tc)
             })
         })
@@ -305,6 +452,7 @@ mod tests {
         assert_eq!(escape_csq_value("a;b"), "a%3Bb");
         assert_eq!(escape_csq_value("a|b"), "a&b");
         assert_eq!(escape_csq_value("a b"), "a_b");
+        assert_eq!(escape_csq_value("p.Leu153="), "p.Leu153%3D");
     }
 
     #[test]

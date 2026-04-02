@@ -56,6 +56,10 @@ pub struct TranscriptVariation {
     pub tsl: Option<u8>,
     pub appris: Option<String>,
     pub ccds: Option<String>,
+    pub symbol_source: Option<String>,
+    pub hgnc_id: Option<String>,
+    /// Flags like "cds_end_NF", "cds_start_NF"
+    pub flags: Vec<String>,
 }
 
 /// Annotation for a specific allele against a specific transcript.

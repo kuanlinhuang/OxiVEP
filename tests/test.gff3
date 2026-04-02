@@ -1,13 +1,124 @@
 ##gff-version 3
-chr1	ensembl	gene	1000	5000	.	+	.	ID=gene:ENSG00000001;Name=BRCA1;biotype=protein_coding
-chr1	ensembl	mRNA	1000	5000	.	+	.	ID=transcript:ENST00000001;Parent=gene:ENSG00000001;biotype=protein_coding;tag=Ensembl_canonical
-chr1	ensembl	exon	1000	1200	.	+	.	ID=exon:ENSE00000001;Parent=transcript:ENST00000001;rank=1
-chr1	ensembl	exon	2000	2300	.	+	.	ID=exon:ENSE00000002;Parent=transcript:ENST00000001;rank=2
-chr1	ensembl	exon	4000	5000	.	+	.	ID=exon:ENSE00000003;Parent=transcript:ENST00000001;rank=3
-chr1	ensembl	CDS	1050	1200	.	+	0	ID=CDS:ENSP00000001;Parent=transcript:ENST00000001
-chr1	ensembl	CDS	2000	2300	.	+	0	ID=CDS:ENSP00000001;Parent=transcript:ENST00000001
-chr1	ensembl	CDS	4000	4500	.	+	1	ID=CDS:ENSP00000001;Parent=transcript:ENST00000001
-chr1	ensembl	gene	10000	12000	.	+	.	ID=gene:ENSG00000002;Name=TP53;biotype=lncRNA
-chr1	ensembl	lnc_RNA	10000	12000	.	+	.	ID=transcript:ENST00000002;Parent=gene:ENSG00000002;biotype=lncRNA
-chr1	ensembl	exon	10000	10500	.	+	.	ID=exon:ENSE00000010;Parent=transcript:ENST00000002;rank=1
-chr1	ensembl	exon	11500	12000	.	+	.	ID=exon:ENSE00000011;Parent=transcript:ENST00000002;rank=2
+17	ensembl_havana	gene	43044292	43170245	.	-	.	ID=gene:ENSG00000012048;Name=BRCA1;biotype=protein_coding;description=BRCA1 DNA repair associated [Source:HGNC Symbol%3BAcc:HGNC:1100];gene_id=ENSG00000012048;logic_name=ensembl_havana_gene_homo_sapiens;version=27
+17	havana_tagene	mRNA	43044292	43125476	.	-	.	ID=transcript:ENST00000921914;Parent=gene:ENSG00000012048;Name=BRCA1-243;biotype=protein_coding;ccdsid=CCDS11454.2;tag=gencode_basic;transcript_id=ENST00000921914;version=1
+17	havana	mRNA	43044295	43125300	.	-	.	ID=transcript:ENST00000497488;Parent=gene:ENSG00000012048;Name=BRCA1-222;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000497488;transcript_support_level=1 (assigned to previous version 1);version=2
+17	havana	mRNA	43044295	43125321	.	-	.	ID=transcript:ENST00000489037;Parent=gene:ENSG00000012048;Name=BRCA1-216;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000489037;transcript_support_level=4 (assigned to previous version 1);version=2
+17	havana	mRNA	43044295	43125359	.	-	.	ID=transcript:ENST00000478531;Parent=gene:ENSG00000012048;Name=BRCA1-214;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000478531;transcript_support_level=1 (assigned to previous version 5);version=6
+17	ensembl_havana	mRNA	43044295	43125364	.	-	.	ID=transcript:ENST00000357654;Parent=gene:ENSG00000012048;Name=BRCA1-203;biotype=protein_coding;ccdsid=CCDS11453.1;tag=gencode_basic,gencode_primary,Ensembl_canonical,MANE_Select;transcript_id=ENST00000357654;transcript_support_level=1 (assigned to previous version 7);version=9
+17	havana	mRNA	43044295	43125364	.	-	.	ID=transcript:ENST00000473961;Parent=gene:ENSG00000012048;Name=BRCA1-211;biotype=protein_coding;tag=gencode_basic,gencode_primary;transcript_id=ENST00000473961;transcript_support_level=2 (assigned to previous version 5);version=6
+17	havana	mRNA	43044295	43125364	.	-	.	ID=transcript:ENST00000477152;Parent=gene:ENSG00000012048;Name=BRCA1-213;biotype=protein_coding;tag=gencode_basic,gencode_primary;transcript_id=ENST00000477152;transcript_support_level=1 (assigned to previous version 5);version=6
+17	havana_tagene	mRNA	43044295	43125367	.	-	.	ID=transcript:ENST00000921915;Parent=gene:ENSG00000012048;Name=BRCA1-244;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000921915;version=1
+17	havana	mRNA	43044295	43125370	.	-	.	ID=transcript:ENST00000352993;Parent=gene:ENSG00000012048;Name=BRCA1-201;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000352993;transcript_support_level=5;version=7
+17	havana	mRNA	43044295	43125402	.	-	.	ID=transcript:ENST00000493919;Parent=gene:ENSG00000012048;Name=BRCA1-220;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000493919;transcript_support_level=2 (assigned to previous version 5);version=6
+17	havana	mRNA	43044295	43125450	.	-	.	ID=transcript:ENST00000494123;Parent=gene:ENSG00000012048;Name=BRCA1-221;biotype=protein_coding;ccdsid=CCDS11453.1;tag=gencode_basic;transcript_id=ENST00000494123;transcript_support_level=1 (assigned to previous version 5);version=6
+17	ensembl_havana	mRNA	43044295	43125483	.	-	.	ID=transcript:ENST00000471181;Parent=gene:ENSG00000012048;Name=BRCA1-209;biotype=protein_coding;ccdsid=CCDS11456.2;tag=gencode_basic;transcript_id=ENST00000471181;transcript_support_level=1 (assigned to previous version 6);version=7
+17	havana	mRNA	43044295	43125483	.	-	.	ID=transcript:ENST00000652672;Parent=gene:ENSG00000012048;Name=BRCA1-232;biotype=protein_coding;ccdsid=CCDS11459.2;transcript_id=ENST00000652672;version=2
+17	havana	mRNA	43044295	43170245	.	-	.	ID=transcript:ENST00000634433;Parent=gene:ENSG00000012048;Name=BRCA1-228;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000634433;transcript_support_level=5 (assigned to previous version 1);version=2
+17	havana	mRNA	43044298	43125360	.	-	.	ID=transcript:ENST00000476777;Parent=gene:ENSG00000012048;Name=BRCA1-212;biotype=protein_coding;tag=gencode_basic,gencode_primary;transcript_id=ENST00000476777;transcript_support_level=5 (assigned to previous version 5);version=6
+17	havana_tagene	mRNA	43044299	43125410	.	-	.	ID=transcript:ENST00000945268;Parent=gene:ENSG00000012048;Name=BRCA1-246;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000945268;version=1
+17	havana	lnc_RNA	43044302	43050409	.	-	.	ID=transcript:ENST00000700081;Parent=gene:ENSG00000012048;Name=BRCA1-233;biotype=retained_intron;transcript_id=ENST00000700081;version=1
+17	havana	mRNA	43044304	43125343	.	-	.	ID=transcript:ENST00000470026;Parent=gene:ENSG00000012048;Name=BRCA1-208;biotype=protein_coding;ccdsid=CCDS11453.1;tag=gencode_basic;transcript_id=ENST00000470026;transcript_support_level=1 (assigned to previous version 5);version=6
+17	havana	mRNA	43044304	43125343	.	-	.	ID=transcript:ENST00000713676;Parent=gene:ENSG00000012048;Name=BRCA1-241;biotype=protein_coding;ccdsid=CCDS11453.1;tag=gencode_basic;transcript_id=ENST00000713676;version=1
+17	havana_tagene	mRNA	43044304	43125360	.	-	.	ID=transcript:ENST00000921916;Parent=gene:ENSG00000012048;Name=BRCA1-245;biotype=protein_coding;ccdsid=CCDS11454.2;tag=gencode_basic,gencode_primary;transcript_id=ENST00000921916;version=1
+17	havana	mRNA	43044304	43125364	.	-	.	ID=transcript:ENST00000618469;Parent=gene:ENSG00000012048;Name=BRCA1-226;biotype=protein_coding;ccdsid=CCDS11453.1;tag=gencode_basic;transcript_id=ENST00000618469;transcript_support_level=1 (assigned to previous version 1);version=2
+17	havana	mRNA	43044304	43125370	.	-	.	ID=transcript:ENST00000461574;Parent=gene:ENSG00000012048;Name=BRCA1-205;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000461574;transcript_support_level=2 (assigned to previous version 1);version=2
+17	havana	mRNA	43044304	43125370	.	-	.	ID=transcript:ENST00000644555;Parent=gene:ENSG00000012048;Name=BRCA1-231;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000644555;version=2
+17	ensembl_havana	mRNA	43044805	43125451	.	-	.	ID=transcript:ENST00000468300;Parent=gene:ENSG00000012048;Name=BRCA1-207;biotype=protein_coding;ccdsid=CCDS11455.2;tag=gencode_basic;transcript_id=ENST00000468300;transcript_support_level=1;version=5
+17	havana_tagene	mRNA	43044805	43125483	.	-	.	ID=transcript:ENST00000899954;Parent=gene:ENSG00000012048;Name=BRCA1-242;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000899954;version=1
+17	havana_tagene	mRNA	43044824	43125487	.	-	.	ID=transcript:ENST00000945269;Parent=gene:ENSG00000012048;Name=BRCA1-247;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000945269;version=1
+17	havana	lnc_RNA	43044981	43048473	.	-	.	ID=transcript:ENST00000700082;Parent=gene:ENSG00000012048;Name=BRCA1-234;biotype=retained_intron;transcript_id=ENST00000700082;version=1
+17	havana	mRNA	43045086	43125364	.	-	.	ID=transcript:ENST00000644379;Parent=gene:ENSG00000012048;Name=BRCA1-230;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000644379;version=2
+17	havana	mRNA	43045434	43125343	.	-	.	ID=transcript:ENST00000484087;Parent=gene:ENSG00000012048;Name=BRCA1-215;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000484087;transcript_support_level=5 (assigned to previous version 5);version=6
+17	ensembl_havana	mRNA	43045563	43125329	.	-	.	ID=transcript:ENST00000586385;Parent=gene:ENSG00000012048;Name=BRCA1-223;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000586385;transcript_support_level=1;version=5
+17	ensembl_havana	mRNA	43045563	43125329	.	-	.	ID=transcript:ENST00000591534;Parent=gene:ENSG00000012048;Name=BRCA1-224;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000591534;transcript_support_level=1;version=5
+17	havana	mRNA	43045563	43125329	.	-	.	ID=transcript:ENST00000591849;Parent=gene:ENSG00000012048;Name=BRCA1-225;biotype=protein_coding;tag=gencode_basic;transcript_id=ENST00000591849;transcript_support_level=1;version=5
+17	ensembl_havana	mRNA	43045629	43125402	.	-	.	ID=transcript:ENST00000493795;Parent=gene:ENSG00000012048;Name=BRCA1-219;biotype=protein_coding;ccdsid=CCDS11459.2;tag=gencode_basic;transcript_id=ENST00000493795;transcript_support_level=5;version=5
+17	havana	mRNA	43045678	43125288	.	-	.	ID=transcript:ENST00000461221;Parent=gene:ENSG00000012048;Name=BRCA1-204;biotype=nonsense_mediated_decay;transcript_id=ENST00000461221;transcript_support_level=1;version=5
+17	havana	mRNA	43045678	43125356	.	-	.	ID=transcript:ENST00000491747;Parent=gene:ENSG00000012048;Name=BRCA1-217;biotype=protein_coding;ccdsid=CCDS11454.2;tag=gencode_basic;transcript_id=ENST00000491747;transcript_support_level=5;version=6
+17	havana	lnc_RNA	43067274	43071066	.	-	.	ID=transcript:ENST00000472490;Parent=gene:ENSG00000012048;Name=BRCA1-210;biotype=retained_intron;transcript_id=ENST00000472490;transcript_support_level=3;version=1
+17	havana	mRNA	43070344	43125343	.	-	.	ID=transcript:ENST00000700182;Parent=gene:ENSG00000012048;Name=BRCA1-236;biotype=protein_coding;tag=gencode_basic,gencode_primary;transcript_id=ENST00000700182;version=1
+17	havana	transcript	43076488	43082760	.	-	.	ID=transcript:ENST00000621897;Parent=gene:ENSG00000012048;Name=BRCA1-227;biotype=protein_coding_CDS_not_defined;transcript_id=ENST00000621897;transcript_support_level=5;version=1
+17	havana	lnc_RNA	43091098	43125315	.	-	.	ID=transcript:ENST00000354071;Parent=gene:ENSG00000012048;Name=BRCA1-202;biotype=retained_intron;transcript_id=ENST00000354071;transcript_support_level=1 (assigned to previous version 7);version=8
+17	havana	mRNA	43094033	43125343	.	-	.	ID=transcript:ENST00000700183;Parent=gene:ENSG00000012048;Name=BRCA1-237;biotype=nonsense_mediated_decay;transcript_id=ENST00000700183;version=1
+17	havana	mRNA	43094112	43125300	.	-	.	ID=transcript:ENST00000492859;Parent=gene:ENSG00000012048;Name=BRCA1-218;biotype=nonsense_mediated_decay;transcript_id=ENST00000492859;transcript_support_level=1;version=5
+17	havana	mRNA	43094482	43125343	.	-	.	ID=transcript:ENST00000642945;Parent=gene:ENSG00000012048;Name=BRCA1-229;biotype=nonsense_mediated_decay;transcript_id=ENST00000642945;version=1
+17	havana	lnc_RNA	43099643	43124339	.	-	.	ID=transcript:ENST00000700184;Parent=gene:ENSG00000012048;Name=BRCA1-238;biotype=retained_intron;transcript_id=ENST00000700184;version=1
+17	havana	mRNA	43099831	43125370	.	-	.	ID=transcript:ENST00000461798;Parent=gene:ENSG00000012048;Name=BRCA1-206;biotype=nonsense_mediated_decay;transcript_id=ENST00000461798;transcript_support_level=3;version=5
+17	havana	lnc_RNA	43104225	43106139	.	-	.	ID=transcript:ENST00000700083;Parent=gene:ENSG00000012048;Name=BRCA1-235;biotype=retained_intron;transcript_id=ENST00000700083;version=1
+17	havana	transcript	43114391	43125370	.	-	.	ID=transcript:ENST00000700185;Parent=gene:ENSG00000012048;Name=BRCA1-239;biotype=protein_coding_CDS_not_defined;transcript_id=ENST00000700185;version=1
+17	havana	transcript	43122343	43125370	.	-	.	ID=transcript:ENST00000700186;Parent=gene:ENSG00000012048;Name=BRCA1-240;biotype=protein_coding_CDS_not_defined;transcript_id=ENST00000700186;version=1
+17	ensembl_havana	mRNA	43044295	43125364	.	-	.	ID=transcript:ENST00000357654;Parent=gene:ENSG00000012048;Name=BRCA1-203;biotype=protein_coding;ccdsid=CCDS11453.1;tag=gencode_basic,gencode_primary,Ensembl_canonical,MANE_Select;transcript_id=ENST00000357654;transcript_support_level=1 (assigned to previous version 7);version=9
+17	ensembl_havana	three_prime_UTR	43044295	43045677	.	-	.	Parent=transcript:ENST00000357654
+17	ensembl_havana	exon	43044295	43045802	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011564;constitutive=0;ensembl_end_phase=-1;ensembl_phase=1;exon_id=ENSE00004011564;rank=23;version=1
+17	ensembl_havana	CDS	43045678	43045802	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43047643	43047703	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011552;constitutive=0;ensembl_end_phase=1;ensembl_phase=0;exon_id=ENSE00004011552;rank=22;version=1
+17	ensembl_havana	CDS	43047643	43047703	.	-	0	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43049121	43049194	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011568;constitutive=0;ensembl_end_phase=0;ensembl_phase=1;exon_id=ENSE00004011568;rank=21;version=1
+17	ensembl_havana	CDS	43049121	43049194	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43051063	43051117	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011553;constitutive=0;ensembl_end_phase=1;ensembl_phase=0;exon_id=ENSE00004011553;rank=20;version=1
+17	ensembl_havana	CDS	43051063	43051117	.	-	0	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43057052	43057135	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011551;constitutive=0;ensembl_end_phase=0;ensembl_phase=0;exon_id=ENSE00004011551;rank=19;version=1
+17	ensembl_havana	CDS	43057052	43057135	.	-	0	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43063333	43063373	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011567;constitutive=0;ensembl_end_phase=0;ensembl_phase=1;exon_id=ENSE00004011567;rank=18;version=1
+17	ensembl_havana	CDS	43063333	43063373	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43063874	43063951	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011565;constitutive=0;ensembl_end_phase=1;ensembl_phase=1;exon_id=ENSE00004011565;rank=17;version=1
+17	ensembl_havana	CDS	43063874	43063951	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43067608	43067695	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011556;constitutive=0;ensembl_end_phase=1;ensembl_phase=0;exon_id=ENSE00004011556;rank=16;version=1
+17	ensembl_havana	CDS	43067608	43067695	.	-	0	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43070928	43071238	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011554;constitutive=0;ensembl_end_phase=0;ensembl_phase=1;exon_id=ENSE00004011554;rank=15;version=1
+17	ensembl_havana	CDS	43070928	43071238	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43074331	43074521	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011562;constitutive=0;ensembl_end_phase=1;ensembl_phase=2;exon_id=ENSE00004011562;rank=14;version=1
+17	ensembl_havana	CDS	43074331	43074521	.	-	1	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43076488	43076614	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011561;constitutive=0;ensembl_end_phase=2;ensembl_phase=1;exon_id=ENSE00004011561;rank=13;version=1
+17	ensembl_havana	CDS	43076488	43076614	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43082404	43082575	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011560;constitutive=0;ensembl_end_phase=1;ensembl_phase=0;exon_id=ENSE00004011560;rank=12;version=1
+17	ensembl_havana	CDS	43082404	43082575	.	-	0	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43090944	43091032	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011558;constitutive=0;ensembl_end_phase=0;ensembl_phase=1;exon_id=ENSE00004011558;rank=11;version=1
+17	ensembl_havana	CDS	43090944	43091032	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43091435	43094860	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011566;constitutive=0;ensembl_end_phase=1;ensembl_phase=1;exon_id=ENSE00004011566;rank=10;version=1
+17	ensembl_havana	CDS	43091435	43094860	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43095846	43095922	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011559;constitutive=0;ensembl_end_phase=1;ensembl_phase=2;exon_id=ENSE00004011559;rank=9;version=1
+17	ensembl_havana	CDS	43095846	43095922	.	-	1	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43097244	43097289	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011550;constitutive=0;ensembl_end_phase=2;ensembl_phase=1;exon_id=ENSE00004011550;rank=8;version=1
+17	ensembl_havana	CDS	43097244	43097289	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43099775	43099880	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00004011563;constitutive=0;ensembl_end_phase=1;ensembl_phase=0;exon_id=ENSE00004011563;rank=7;version=1
+17	ensembl_havana	CDS	43099775	43099880	.	-	0	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43104122	43104261	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00001917948;constitutive=0;ensembl_end_phase=0;ensembl_phase=1;exon_id=ENSE00001917948;rank=6;version=2
+17	ensembl_havana	CDS	43104122	43104261	.	-	2	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43104868	43104956	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00003531836;constitutive=0;ensembl_end_phase=1;ensembl_phase=2;exon_id=ENSE00003531836;rank=5;version=1
+17	ensembl_havana	CDS	43104868	43104956	.	-	1	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43106456	43106533	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00003541068;constitutive=0;ensembl_end_phase=2;ensembl_phase=2;exon_id=ENSE00003541068;rank=4;version=1
+17	ensembl_havana	CDS	43106456	43106533	.	-	1	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43115726	43115779	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00003510592;constitutive=0;ensembl_end_phase=2;ensembl_phase=2;exon_id=ENSE00003510592;rank=3;version=1
+17	ensembl_havana	CDS	43115726	43115779	.	-	1	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	CDS	43124017	43124096	.	-	0	ID=CDS:ENSP00000350283;Parent=transcript:ENST00000357654;protein_id=ENSP00000350283;version=3
+17	ensembl_havana	exon	43124017	43124115	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00003559512;constitutive=0;ensembl_end_phase=2;ensembl_phase=-1;exon_id=ENSE00003559512;rank=2;version=1
+17	ensembl_havana	five_prime_UTR	43124097	43124115	.	-	.	Parent=transcript:ENST00000357654
+17	ensembl_havana	exon	43125271	43125364	.	-	.	Parent=transcript:ENST00000357654;Name=ENSE00001852567;constitutive=0;ensembl_end_phase=-1;ensembl_phase=-1;exon_id=ENSE00001852567;rank=1;version=1
+17	ensembl_havana	five_prime_UTR	43125271	43125364	.	-	.	Parent=transcript:ENST00000357654
+17	ensembl_havana	gene	7661779	7687546	.	-	.	ID=gene:ENSG00000141510;Name=TP53;biotype=protein_coding;description=tumor protein p53 [Source:HGNC Symbol%3BAcc:HGNC:11998];gene_id=ENSG00000141510;logic_name=ensembl_havana_gene_homo_sapiens;version=20
+17	havana	mRNA	7668421	7687490	.	-	.	ID=transcript:ENST00000269305;Parent=gene:ENSG00000141510;Name=TP53-201;biotype=protein_coding;ccdsid=CCDS11118.1;tag=gencode_basic,gencode_primary,Ensembl_canonical,MANE_Select;transcript_id=ENST00000269305;transcript_support_level=1 (assigned to previous version 8);version=9
+17	havana	three_prime_UTR	7668421	7669608	.	-	.	Parent=transcript:ENST00000269305
+17	havana	exon	7668421	7669690	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00004023724;constitutive=0;ensembl_end_phase=-1;ensembl_phase=2;exon_id=ENSE00004023724;rank=11;version=1
+17	havana	CDS	7669609	7669690	.	-	1	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7670609	7670715	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00003545950;constitutive=0;ensembl_end_phase=2;ensembl_phase=0;exon_id=ENSE00003545950;rank=10;version=1
+17	havana	CDS	7670609	7670715	.	-	0	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7673535	7673608	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00003786593;constitutive=0;ensembl_end_phase=0;ensembl_phase=1;exon_id=ENSE00003786593;rank=9;version=1
+17	havana	CDS	7673535	7673608	.	-	2	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7673701	7673837	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00003725258;constitutive=0;ensembl_end_phase=1;ensembl_phase=2;exon_id=ENSE00003725258;rank=8;version=1
+17	havana	CDS	7673701	7673837	.	-	1	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7674181	7674290	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00003712342;constitutive=0;ensembl_end_phase=2;ensembl_phase=0;exon_id=ENSE00003712342;rank=7;version=1
+17	havana	CDS	7674181	7674290	.	-	0	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7674859	7674971	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00003723991;constitutive=0;ensembl_end_phase=0;ensembl_phase=1;exon_id=ENSE00003723991;rank=6;version=1
+17	havana	CDS	7674859	7674971	.	-	2	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7675053	7675236	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00003518480;constitutive=0;ensembl_end_phase=1;ensembl_phase=0;exon_id=ENSE00003518480;rank=5;version=1
+17	havana	CDS	7675053	7675236	.	-	0	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7675994	7676272	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00003625790;constitutive=0;ensembl_end_phase=0;ensembl_phase=0;exon_id=ENSE00003625790;rank=4;version=1
+17	havana	CDS	7675994	7676272	.	-	0	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7676382	7676403	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00002419584;constitutive=0;ensembl_end_phase=0;ensembl_phase=2;exon_id=ENSE00002419584;rank=3;version=1
+17	havana	CDS	7676382	7676403	.	-	1	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	CDS	7676521	7676594	.	-	0	ID=CDS:ENSP00000269305;Parent=transcript:ENST00000269305;protein_id=ENSP00000269305;version=4
+17	havana	exon	7676521	7676622	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00004023728;constitutive=0;ensembl_end_phase=2;ensembl_phase=-1;exon_id=ENSE00004023728;rank=2;version=1
+17	havana	five_prime_UTR	7676595	7676622	.	-	.	Parent=transcript:ENST00000269305
+17	havana	exon	7687377	7687490	.	-	.	Parent=transcript:ENST00000269305;Name=ENSE00003753508;constitutive=0;ensembl_end_phase=-1;ensembl_phase=-1;exon_id=ENSE00003753508;rank=1;version=2
+17	havana	five_prime_UTR	7687377	7687490	.	-	.	Parent=transcript:ENST00000269305

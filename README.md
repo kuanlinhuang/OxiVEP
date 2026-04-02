@@ -50,24 +50,20 @@ OxiVEP ships with a small test VCF and GFF3 so you can try it immediately:
 oxivep annotate -i tests/test.vcf --gff3 tests/test.gff3 --hgvs --output-format tab
 ```
 
-Expected output:
+Expected output (using real BRCA1 and TP53 data from Ensembl GRCh38):
 
 ```
-rs001   chr1:500       G  ENSG00000001  ENST00000001  Transcript  upstream_gene_variant
-rs002   chr1:1020      G  ENSG00000001  ENST00000001  Transcript  5_prime_UTR_variant
-rs003   chr1:1100      G  ENSG00000001  ENST00000001  Transcript  missense_variant
-rs004   chr1:1201      A  ENSG00000001  ENST00000001  Transcript  splice_donor_variant,intron_variant
-rs005   chr1:1500      T  ENSG00000001  ENST00000001  Transcript  intron_variant
-rs006   chr1:1999      G  ENSG00000001  ENST00000001  Transcript  splice_acceptor_variant,intron_variant
-rs007   chr1:2100      G  ENSG00000001  ENST00000001  Transcript  missense_variant
-rs008   chr1:4600      T  ENSG00000001  ENST00000001  Transcript  3_prime_UTR_variant
-rs009   chr1:6000      C  ...           ...           Transcript  downstream_gene_variant
-rs010   chr1:10100     G  ENSG00000002  ENST00000002  Transcript  non_coding_transcript_exon_variant
-rs011   chr1:100000    G  -             -             Transcript  intergenic_variant
-rs012   chr1:1101      -  ENSG00000001  ENST00000001  Transcript  frameshift_variant
+rs_cds_brca1      17:43124090  G  ENSG00000012048  ENST00000357654  Transcript  synonymous_variant
+rs_cds_brca1_mid  17:43106500  C  ENSG00000012048  ENST00000357654  Transcript  synonymous_variant
+rs_5utr_brca1     17:43125300  T  ENSG00000012048  ENST00000357654  Transcript  5_prime_UTR_variant
+rs_intron_brca1   17:43120000  T  ENSG00000012048  ENST00000357654  Transcript  intron_variant
+rs_downstream     17:43043000  C  ENSG00000012048  ENST00000357654  Transcript  downstream_gene_variant
+rs_3utr_brca1     17:43045700  C  ENSG00000012048  ENST00000357654  Transcript  missense_variant
+rs_del_brca1      17:43124090  -  ENSG00000012048  ENST00000357654  Transcript  frameshift_variant
+rs_cds_tp53       17:7675088   T  ENSG00000141510  ENST00000269305  Transcript  missense_variant
 ```
 
-The 12 variants cover: upstream, 5'UTR, missense, splice donor (HIGH), intron, splice acceptor (HIGH), 3'UTR, downstream, non-coding exon, intergenic, and frameshift.
+The 8 variants cover: coding SNVs, 5'UTR, 3'UTR, intron, downstream, and frameshift deletion across BRCA1 and TP53.
 
 ### 4. Try VCF output (with CSQ annotations)
 
@@ -125,26 +121,22 @@ OxiVEP works with any organism — just provide the matching GFF3.
 
 The repository includes test files in `tests/`:
 
-**`tests/test.gff3`** — Two genes on chr1:
-- `BRCA1` (ENSG00000001): Protein-coding gene at chr1:1000-5000, 3 exons, CDS at 1050-4500
-- `TP53` (ENSG00000002): lncRNA gene at chr1:10000-12000, 2 exons
+**`tests/test.gff3`** — Real Ensembl GRCh38 release 115 annotations for two genes on chr17:
+- `BRCA1` (ENSG00000012048): Protein-coding gene at chr17:43044292-43170245 (- strand), 23 exons
+- `TP53` (ENSG00000141510): Protein-coding gene at chr17:7661779-7687546 (- strand), 11 exons
 
-**`tests/test.vcf`** — 12 variants designed to demonstrate every major consequence type:
+**`tests/test.vcf`** — 8 variants at real BRCA1/TP53 positions:
 
 | Variant | Position | Type | Expected Consequence |
 |---------|----------|------|---------------------|
-| rs001 | chr1:500 | SNV | upstream_gene_variant |
-| rs002 | chr1:1020 | SNV (in 5'UTR) | 5_prime_UTR_variant |
-| rs003 | chr1:1100 | SNV (in CDS) | missense_variant |
-| rs004 | chr1:1201 | SNV (intron pos 1) | splice_donor_variant |
-| rs005 | chr1:1500 | SNV (mid-intron) | intron_variant |
-| rs006 | chr1:1999 | SNV (intron last base) | splice_acceptor_variant |
-| rs007 | chr1:2100 | SNV (in CDS exon 2) | missense_variant |
-| rs008 | chr1:4600 | SNV (in 3'UTR) | 3_prime_UTR_variant |
-| rs009 | chr1:6000 | SNV (between genes) | downstream + upstream |
-| rs010 | chr1:10100 | SNV (lncRNA exon) | non_coding_transcript_exon_variant |
-| rs011 | chr1:100000 | SNV (far from genes) | intergenic_variant |
-| rs012 | chr1:1100 | 1bp deletion (CDS) | frameshift_variant |
+| rs_cds_brca1 | 17:43124090 | SNV (in CDS) | synonymous_variant |
+| rs_cds_brca1_mid | 17:43106500 | SNV (in CDS) | synonymous_variant |
+| rs_5utr_brca1 | 17:43125300 | SNV (in 5'UTR) | 5_prime_UTR_variant |
+| rs_intron_brca1 | 17:43120000 | SNV (mid-intron) | intron_variant |
+| rs_downstream_brca1 | 17:43043000 | SNV (downstream) | downstream_gene_variant |
+| rs_3utr_brca1 | 17:43045700 | SNV (near 3' end) | missense_variant |
+| rs_del_brca1 | 17:43124090 | 1bp deletion (CDS) | frameshift_variant |
+| rs_cds_tp53 | 17:7675088 | SNV (in CDS) | missense_variant |
 
 ## Command Reference
 

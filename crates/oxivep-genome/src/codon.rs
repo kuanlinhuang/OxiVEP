@@ -137,6 +137,23 @@ pub fn aa_one_to_three(aa: u8) -> &'static str {
     }
 }
 
+/// Format a ref/alt codon pair with changed bases UPPERCASE, unchanged lowercase.
+/// Matches VEP convention: e.g., GCA/GAA → "gCa/gAa"
+pub fn format_codon_change(ref_codon: &[u8; 3], alt_codon: &[u8; 3]) -> (String, String) {
+    let mut ref_display = String::with_capacity(3);
+    let mut alt_display = String::with_capacity(3);
+    for i in 0..3 {
+        if ref_codon[i].to_ascii_uppercase() != alt_codon[i].to_ascii_uppercase() {
+            ref_display.push((ref_codon[i] as char).to_ascii_uppercase());
+            alt_display.push((alt_codon[i] as char).to_ascii_uppercase());
+        } else {
+            ref_display.push((ref_codon[i] as char).to_ascii_lowercase());
+            alt_display.push((alt_codon[i] as char).to_ascii_lowercase());
+        }
+    }
+    (ref_display, alt_display)
+}
+
 /// Compute the reverse complement of a DNA sequence.
 pub fn reverse_complement(seq: &[u8]) -> Vec<u8> {
     seq.iter()
@@ -192,6 +209,29 @@ mod tests {
         assert_eq!(aa_one_to_three(b'M'), "Met");
         assert_eq!(aa_one_to_three(b'*'), "Ter");
         assert_eq!(aa_one_to_three(b'X'), "Xaa");
+    }
+
+    #[test]
+    fn test_format_codon_change() {
+        // GCA -> GAA: position 1 changes (C->A)
+        let (r, a) = format_codon_change(b"GCA", b"GAA");
+        assert_eq!(r, "gCa");
+        assert_eq!(a, "gAa");
+
+        // ATG -> GTG: position 0 changes (A->G)
+        let (r, a) = format_codon_change(b"ATG", b"GTG");
+        assert_eq!(r, "Atg");
+        assert_eq!(a, "Gtg");
+
+        // GCT -> GCC: position 2 changes (T->C)
+        let (r, a) = format_codon_change(b"GCT", b"GCC");
+        assert_eq!(r, "gcT");
+        assert_eq!(a, "gcC");
+
+        // All positions change
+        let (r, a) = format_codon_change(b"AAA", b"TTT");
+        assert_eq!(r, "AAA");
+        assert_eq!(a, "TTT");
     }
 
     #[test]

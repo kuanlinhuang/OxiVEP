@@ -1,4 +1,5 @@
 use oxivep_core::{Allele, Consequence, GenomicPosition, Impact, Strand};
+use oxivep_genome::codon::format_codon_change;
 use oxivep_genome::{CodonTable, Transcript};
 
 use crate::splice;
@@ -208,17 +209,23 @@ impl ConsequencePredictor {
         });
 
         if !is_essential_splice {
-            if splice::is_splice_donor_5th_base(transcript, var_start) {
+            let is_donor_5th = splice::is_splice_donor_5th_base(transcript, var_start);
+            let is_donor_region = splice::is_splice_donor_region(transcript, var_start);
+            if is_donor_5th {
                 consequences.push(Consequence::SpliceDonorFifthBaseVariant);
             }
-            if splice::is_splice_donor_region(transcript, var_start) {
+            if is_donor_region {
                 consequences.push(Consequence::SpliceDonorRegionVariant);
             }
             if splice::is_splice_polypyrimidine_tract(transcript, var_start) {
                 consequences.push(Consequence::SplicePolypyrimidineTractVariant);
             }
-            if splice::is_splice_region(transcript, var_start) {
-                consequences.push(Consequence::SpliceRegionVariant);
+            // VEP excludes splice_region_variant when a more specific splice term is present:
+            // splice_donor_region_variant or splice_donor_5th_base_variant
+            if !is_donor_5th && !is_donor_region {
+                if splice::is_splice_region(transcript, var_start) {
+                    consequences.push(Consequence::SpliceRegionVariant);
+                }
             }
         }
 
@@ -261,7 +268,8 @@ impl ConsequencePredictor {
                 } else {
                     consequences.push(Consequence::CodingSequenceVariant);
                 }
-            } else if in_intron {
+            } else if in_intron && !is_essential_splice {
+                // VEP excludes intron_variant for positions at splice donor/acceptor sites
                 consequences.push(Consequence::IntronVariant);
             }
         } else {
@@ -269,10 +277,9 @@ impl ConsequencePredictor {
             if in_exon {
                 consequences.push(Consequence::NonCodingTranscriptExonVariant);
             } else if in_intron {
-                consequences.push(Consequence::IntronVariant);
-            }
-            // Add overall non-coding transcript consequence
-            if in_exon || in_intron {
+                if !is_essential_splice {
+                    consequences.push(Consequence::IntronVariant);
+                }
                 consequences.push(Consequence::NonCodingTranscriptVariant);
             }
         }
@@ -284,6 +291,11 @@ impl ConsequencePredictor {
             } else {
                 consequences.push(Consequence::NonCodingTranscriptVariant);
             }
+        }
+
+        // Add NMD_transcript_variant modifier for nonsense_mediated_decay transcripts
+        if transcript.biotype == "nonsense_mediated_decay" {
+            consequences.push(Consequence::NmdTranscriptVariant);
         }
 
         // Deduplicate
@@ -319,31 +331,38 @@ impl ConsequencePredictor {
         let ref_len = ref_allele.len();
         let alt_len = alt_allele.len();
 
-        // Check if this is a frameshift
+        // Check if this is a frameshift or in-frame indel
         let is_deletion = *ref_allele != Allele::Deletion && *alt_allele == Allele::Deletion;
         let is_insertion = *ref_allele == Allele::Deletion && *alt_allele != Allele::Missing;
+        let is_indel = is_deletion || is_insertion || ref_len != alt_len;
 
-        if is_deletion || is_insertion {
-            let indel_len = if is_deletion { ref_len } else { alt_len };
-            if indel_len % 3 != 0 {
-                return Some((Consequence::FrameshiftVariant, None, None));
-            } else if is_insertion {
-                return Some((Consequence::InframeInsertion, None, None));
+        if is_indel {
+            let (consequence, is_frameshift) = if is_deletion || is_insertion {
+                let indel_len = if is_deletion { ref_len } else { alt_len };
+                if indel_len % 3 != 0 {
+                    (Consequence::FrameshiftVariant, true)
+                } else if is_insertion {
+                    (Consequence::InframeInsertion, false)
+                } else {
+                    (Consequence::InframeDeletion, false)
+                }
             } else {
-                return Some((Consequence::InframeDeletion, None, None));
-            }
-        }
+                let len_diff = (ref_len as i64 - alt_len as i64).unsigned_abs() as usize;
+                if len_diff % 3 != 0 {
+                    (Consequence::FrameshiftVariant, true)
+                } else if ref_len > alt_len {
+                    (Consequence::InframeDeletion, false)
+                } else {
+                    (Consequence::InframeInsertion, false)
+                }
+            };
 
-        // For SNVs and MNVs with different lengths
-        if ref_len != alt_len {
-            let len_diff = (ref_len as i64 - alt_len as i64).unsigned_abs() as usize;
-            if len_diff % 3 != 0 {
-                return Some((Consequence::FrameshiftVariant, None, None));
-            } else if ref_len > alt_len {
-                return Some((Consequence::InframeDeletion, None, None));
-            } else {
-                return Some((Consequence::InframeInsertion, None, None));
-            }
+            // Try to compute amino acids and codons from translateable_seq
+            let (aa_pair, codon_pair) = self.compute_indel_amino_acids(
+                transcript, cds_pos, ref_allele, alt_allele, is_frameshift,
+            );
+
+            return Some((consequence, aa_pair, codon_pair));
         }
 
         // Same length substitution (SNV or MNV)
@@ -375,8 +394,7 @@ impl ConsequencePredictor {
                 let ref_aa = self.codon_table.translate(&ref_codon);
                 let alt_aa = self.codon_table.translate(&alt_codon);
 
-                let ref_codon_str = String::from_utf8_lossy(&ref_codon).to_string();
-                let alt_codon_str = String::from_utf8_lossy(&alt_codon).to_string();
+                let (ref_codon_str, alt_codon_str) = format_codon_change(&ref_codon, &alt_codon);
 
                 let ref_aa_str = String::from(ref_aa as char);
                 let alt_aa_str = String::from(alt_aa as char);
@@ -417,11 +435,153 @@ impl ConsequencePredictor {
         }
     }
 
+    /// Compute amino acids and codons affected by an indel variant.
+    /// Returns (amino_acids, codons) tuples.
+    /// For frameshifts: ref codon with VEP-style case formatting, truncated alt codon.
+    fn compute_indel_amino_acids(
+        &self,
+        transcript: &Transcript,
+        cds_pos: u64,
+        ref_allele: &Allele,
+        alt_allele: &Allele,
+        is_frameshift: bool,
+    ) -> (Option<(String, String)>, Option<(String, String)>) {
+        let translateable_seq = match transcript.translateable_seq.as_ref() {
+            Some(s) => s,
+            None => return (None, None),
+        };
+        let seq_bytes = translateable_seq.as_bytes();
+        let cds_idx = (cds_pos - 1) as usize;
+
+        if cds_idx >= seq_bytes.len() {
+            return (None, None);
+        }
+
+        // Get the codon at the affected position
+        let codon_number = cds_idx / 3;
+        let codon_offset = cds_idx % 3;
+        let codon_start = codon_number * 3;
+
+        if codon_start + 3 > seq_bytes.len() {
+            return (None, None);
+        }
+
+        let ref_codon = [seq_bytes[codon_start], seq_bytes[codon_start + 1], seq_bytes[codon_start + 2]];
+        let ref_aa = self.codon_table.translate(&ref_codon);
+        let ref_aa_str = String::from(ref_aa as char);
+
+        if is_frameshift {
+            // Build the alt sequence by applying the indel
+            let mut alt_seq: Vec<u8> = seq_bytes.to_vec();
+
+            match (ref_allele, alt_allele) {
+                (Allele::Sequence(_), Allele::Deletion) => {
+                    let del_len = ref_allele.len();
+                    let end = (cds_idx + del_len).min(alt_seq.len());
+                    alt_seq.drain(cds_idx..end);
+                }
+                (Allele::Deletion, Allele::Sequence(ins_bases)) => {
+                    let mut bases: Vec<u8> = ins_bases.clone();
+                    if transcript.strand == Strand::Reverse {
+                        bases = bases.iter().map(|&b| complement(b)).collect();
+                    }
+                    for (i, &b) in bases.iter().enumerate() {
+                        alt_seq.insert(cds_idx + i, b);
+                    }
+                }
+                (Allele::Sequence(ref_bases), Allele::Sequence(alt_bases)) => {
+                    let end = (cds_idx + ref_bases.len()).min(alt_seq.len());
+                    let mut replacement = alt_bases.clone();
+                    if transcript.strand == Strand::Reverse {
+                        replacement = replacement.iter().map(|&b| complement(b)).collect();
+                    }
+                    alt_seq.splice(cds_idx..end, replacement);
+                }
+                _ => return (None, None),
+            }
+
+            // Build codon display: VEP style with deleted base uppercase
+            // ref codon: lowercase bases, uppercase at the deleted position(s)
+            let mut ref_codon_display = String::with_capacity(3);
+            for i in 0..3 {
+                if i == codon_offset {
+                    ref_codon_display.push((ref_codon[i] as char).to_ascii_uppercase());
+                } else {
+                    ref_codon_display.push((ref_codon[i] as char).to_ascii_lowercase());
+                }
+            }
+
+            // alt codon: show only the remaining bases of the original codon after the indel
+            // For a deletion at offset 2 in a 3-base codon: show only the 2 remaining bases
+            let alt_codon_display: String = {
+                let mut original_codon: Vec<u8> = ref_codon.to_vec();
+                match (ref_allele, alt_allele) {
+                    (Allele::Sequence(_), Allele::Deletion) => {
+                        // Remove the deleted base(s) from the codon
+                        let del_len = ref_allele.len().min(3 - codon_offset);
+                        let end = (codon_offset + del_len).min(original_codon.len());
+                        original_codon.drain(codon_offset..end);
+                    }
+                    (Allele::Deletion, Allele::Sequence(ins_bases)) => {
+                        // Insert bases into the codon at the offset
+                        let mut bases = ins_bases.clone();
+                        if transcript.strand == Strand::Reverse {
+                            bases = bases.iter().map(|&b| complement(b)).collect();
+                        }
+                        for (j, &b) in bases.iter().enumerate() {
+                            original_codon.insert(codon_offset + j, b);
+                        }
+                    }
+                    _ => {}
+                }
+                original_codon.iter()
+                    .map(|&b| (b as char).to_ascii_lowercase())
+                    .collect()
+            };
+
+            // For frameshifts, alt amino acid is always X (unknown/frameshift)
+            let aa_pair = Some((ref_aa_str, "X".to_string()));
+            let codon_pair = Some((ref_codon_display, alt_codon_display));
+            (aa_pair, codon_pair)
+        } else {
+            // In-frame indel: show affected amino acids
+            let aa_pair = match (ref_allele, alt_allele) {
+                (Allele::Sequence(_), Allele::Deletion) => {
+                    let del_len = ref_allele.len();
+                    let end_cds = (cds_idx + del_len).min(seq_bytes.len());
+                    let deleted_region = &seq_bytes[codon_start..((end_cds + 2) / 3 * 3).min(seq_bytes.len())];
+                    let deleted_aas: String = deleted_region.chunks(3)
+                        .filter(|c| c.len() == 3)
+                        .map(|c| self.codon_table.translate(&[c[0], c[1], c[2]]) as char)
+                        .collect();
+                    Some((deleted_aas, "-".to_string()))
+                }
+                (Allele::Deletion, Allele::Sequence(ins_bases)) => {
+                    let mut bases = ins_bases.clone();
+                    if transcript.strand == Strand::Reverse {
+                        bases = bases.iter().map(|&b| complement(b)).collect();
+                    }
+                    let inserted_aas: String = bases.chunks(3)
+                        .filter(|c| c.len() == 3)
+                        .map(|c| self.codon_table.translate(&[c[0], c[1], c[2]]) as char)
+                        .collect();
+                    Some(("-".to_string(), inserted_aas))
+                }
+                _ => Some((ref_aa_str, "X".to_string())),
+            };
+            (aa_pair, None)
+        }
+    }
+
     fn distance_to_transcript(&self, var_start: u64, var_end: u64, transcript: &Transcript) -> Option<i64> {
-        if var_end < transcript.start {
-            Some((transcript.start - var_end) as i64)
-        } else if var_start > transcript.end {
-            Some((var_start - transcript.end) as i64)
+        // For insertions (end < start), use start for distance calculation
+        // since start represents the actual insertion position
+        let effective_start = var_start.min(var_end);
+        let effective_end = var_start.max(var_end);
+        if effective_end < transcript.start {
+            Some((transcript.start - effective_end) as i64)
+        } else if effective_start > transcript.end {
+            Some((effective_start - transcript.end) as i64)
         } else {
             Some(0)
         }
@@ -499,6 +659,7 @@ mod tests {
 
         Transcript {
             stable_id: "ENST00000001".into(),
+            version: None,
             gene: Gene {
                 stable_id: "ENSG00000001".into(),
                 symbol: Some("TESTGENE".into()),
@@ -540,14 +701,16 @@ mod tests {
             mane_select: None, mane_plus_clinical: None,
             tsl: Some(1), appris: None, ccds: None,
             protein_id: Some("ENSP00000001".into()),
+            protein_version: None,
             swissprot: vec![], trembl: vec![], uniparc: vec![],
-            refseq_id: None, source: None, gencode_primary: false,
+            refseq_id: None, source: None, gencode_primary: false, flags: vec![], codon_table_start_phase: 0,
         }
     }
 
     fn make_noncoding_transcript() -> Transcript {
         Transcript {
             stable_id: "ENST_NC".into(),
+            version: None,
             gene: Gene {
                 stable_id: "ENSG_NC".into(),
                 symbol: Some("NCRNA1".into()),
@@ -570,9 +733,9 @@ mod tests {
             coding_region_start: None, coding_region_end: None,
             spliced_seq: None, translateable_seq: None, peptide: None,
             canonical: false, mane_select: None, mane_plus_clinical: None,
-            tsl: None, appris: None, ccds: None, protein_id: None,
+            tsl: None, appris: None, ccds: None, protein_id: None, protein_version: None,
             swissprot: vec![], trembl: vec![], uniparc: vec![],
-            refseq_id: None, source: None, gencode_primary: false,
+            refseq_id: None, source: None, gencode_primary: false, flags: vec![], codon_table_start_phase: 0,
         }
     }
 

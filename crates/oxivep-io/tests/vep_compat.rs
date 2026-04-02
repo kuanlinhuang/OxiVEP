@@ -3,7 +3,9 @@
 /// These tests verify that OxiVEP's VCF parsing, allele normalization,
 /// and variant representation matches the behavior documented in
 /// ensembl-vep's Parser_VCF.t test suite.
-use oxivep_core::{Allele, Strand};
+use oxivep_core::{Allele, Impact, Strand};
+use oxivep_io::output;
+use oxivep_io::variant::{AlleleAnnotation, TranscriptVariation, VariationFeature, VcfFields};
 use oxivep_io::vcf::{parse_vcf_line, VcfParser};
 
 // =============================================================================
@@ -433,4 +435,539 @@ fn test_codon_table_matches_ncbi() {
     assert_eq!(table.translate(b"CGT"), b'R'); // Arg
     assert_eq!(table.translate(b"AGA"), b'R'); // Arg
     assert_eq!(table.translate(b"GGG"), b'G'); // Gly
+}
+
+// =============================================================================
+// CSQ Output Formatting — matches Ensembl VEP output format
+// =============================================================================
+
+/// Helper to build a mock VariationFeature for CSQ output testing.
+fn mock_vf_missense() -> VariationFeature {
+    use oxivep_core::Consequence;
+
+    VariationFeature {
+        position: oxivep_core::GenomicPosition::new("1", 65568, 65568, Strand::Forward),
+        allele_string: "A/C".into(),
+        ref_allele: Allele::from_str("A"),
+        alt_alleles: vec![Allele::from_str("C")],
+        variation_name: Some("1_65568_A/C".into()),
+        vcf_line: None,
+        vcf_fields: None,
+        transcript_variations: vec![TranscriptVariation {
+            transcript_id: "ENST00000641515.2".into(),
+            gene_id: "ENSG00000186092".into(),
+            gene_symbol: Some("OR4F5".into()),
+            biotype: "protein_coding".into(),
+            allele_annotations: vec![AlleleAnnotation {
+                allele: Allele::from_str("C"),
+                consequences: vec![Consequence::MissenseVariant],
+                impact: Impact::Moderate,
+                cdna_position: Some((64, 64)),
+                cds_position: Some((4, 4)),
+                protein_position: Some((2, 2)),
+                amino_acids: Some(("K".into(), "Q".into())),
+                codons: Some(("Aag".into(), "Cag".into())),
+                exon: Some((2, 3)),
+                intron: None,
+                distance: None,
+                hgvsc: None,
+                hgvsp: None,
+                hgvsg: None,
+                existing_variation: vec![],
+                sift: Some("tolerated_low_confidence(0.06)".into()),
+                polyphen: Some("benign(0)".into()),
+            }],
+            canonical: false,
+            strand: Strand::Forward,
+            source: None,
+            protein_id: None,
+            mane_select: Some("NM_001005484.2".into()),
+            mane_plus_clinical: None,
+            tsl: None,
+            appris: Some("P1".into()),
+            ccds: None,
+            symbol_source: Some("HGNC".into()),
+            hgnc_id: Some("HGNC:14825".into()),
+            flags: vec![],
+        }],
+        existing_variants: vec![],
+        minimised: false,
+        most_severe_consequence: Some(Consequence::MissenseVariant),
+    }
+}
+
+#[test]
+fn test_csq_missense_field_values() {
+    let vf = mock_vf_missense();
+    let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
+
+    // Parse the CSQ string into fields
+    let fields: Vec<&str> = csq.split('|').collect();
+
+    // Validate key fields match VEP output format
+    assert_eq!(fields[0], "C", "Allele");
+    assert_eq!(fields[1], "missense_variant", "Consequence");
+    assert_eq!(fields[2], "MODERATE", "IMPACT");
+    assert_eq!(fields[3], "OR4F5", "SYMBOL");
+    assert_eq!(fields[4], "ENSG00000186092", "Gene");
+    assert_eq!(fields[5], "Transcript", "Feature_type");
+    assert_eq!(fields[6], "ENST00000641515.2", "Feature");
+    assert_eq!(fields[7], "protein_coding", "BIOTYPE");
+    assert_eq!(fields[8], "2/3", "EXON");
+    assert_eq!(fields[9], "", "INTRON should be empty");
+    assert_eq!(fields[12], "64", "cDNA_position");
+    assert_eq!(fields[13], "4", "CDS_position");
+    assert_eq!(fields[14], "2", "Protein_position");
+    assert_eq!(fields[15], "K/Q", "Amino_acids");
+    assert_eq!(fields[16], "Aag/Cag", "Codons");
+    assert_eq!(fields[18], "A", "REF_ALLELE");
+    assert_eq!(fields[19], "A/C", "UPLOADED_ALLELE");
+    assert_eq!(fields[21], "1", "STRAND");
+    assert_eq!(fields[23], "HGNC", "SYMBOL_SOURCE");
+    assert_eq!(fields[24], "HGNC:14825", "HGNC_ID");
+    assert_eq!(fields[25], "MANE_Select", "MANE");
+    assert_eq!(fields[26], "NM_001005484.2", "MANE_SELECT");
+    assert_eq!(fields[29], "P1", "APPRIS");
+    assert_eq!(fields[30], "tolerated_low_confidence(0.06)", "SIFT");
+    assert_eq!(fields[31], "benign(0)", "PolyPhen");
+}
+
+#[test]
+fn test_csq_frameshift_codon_format() {
+    use oxivep_core::Consequence;
+
+    // Simulate VEP output: frameshift with codons "gAg/gg"
+    let vf = VariationFeature {
+        position: oxivep_core::GenomicPosition::new("3", 319780, 319781, Strand::Forward),
+        allele_string: "GA/G".into(),
+        ref_allele: Allele::from_str("A"),
+        alt_alleles: vec![Allele::Deletion],
+        variation_name: Some("3_319781_A/-".into()),
+        vcf_line: None,
+        vcf_fields: None,
+        transcript_variations: vec![TranscriptVariation {
+            transcript_id: "ENST00000256509.7".into(),
+            gene_id: "ENSG00000134121".into(),
+            gene_symbol: Some("CHL1".into()),
+            biotype: "protein_coding".into(),
+            allele_annotations: vec![AlleleAnnotation {
+                allele: Allele::Deletion,
+                consequences: vec![Consequence::FrameshiftVariant],
+                impact: Impact::High,
+                cdna_position: Some((480, 480)),
+                cds_position: Some((5, 5)),
+                protein_position: Some((2, 2)),
+                amino_acids: Some(("E".into(), "X".into())),
+                codons: Some(("gAg".into(), "gg".into())),
+                exon: Some((3, 28)),
+                intron: None,
+                distance: None,
+                hgvsc: None,
+                hgvsp: None,
+                hgvsg: None,
+                existing_variation: vec![],
+                sift: None,
+                polyphen: None,
+            }],
+            canonical: false,
+            strand: Strand::Forward,
+            source: None,
+            protein_id: None,
+            mane_select: Some("NM_006614.4".into()),
+            mane_plus_clinical: None,
+            tsl: Some(1),
+            appris: Some("P3".into()),
+            ccds: None,
+            symbol_source: Some("HGNC".into()),
+            hgnc_id: Some("HGNC:1939".into()),
+            flags: vec![],
+        }],
+        existing_variants: vec![],
+        minimised: false,
+        most_severe_consequence: Some(Consequence::FrameshiftVariant),
+    };
+
+    let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
+    let fields: Vec<&str> = csq.split('|').collect();
+
+    assert_eq!(fields[0], "-", "Allele for deletion should be '-'");
+    assert_eq!(fields[1], "frameshift_variant", "Consequence");
+    assert_eq!(fields[2], "HIGH", "IMPACT");
+    assert_eq!(fields[8], "3/28", "EXON");
+    assert_eq!(fields[12], "480", "cDNA_position");
+    assert_eq!(fields[13], "5", "CDS_position");
+    assert_eq!(fields[14], "2", "Protein_position");
+    assert_eq!(fields[15], "E/X", "Amino_acids");
+    assert_eq!(fields[16], "gAg/gg", "Codons - frameshift format");
+    assert_eq!(fields[18], "A", "REF_ALLELE");
+    assert_eq!(fields[19], "A/-", "UPLOADED_ALLELE");
+    assert_eq!(fields[21], "1", "STRAND");
+}
+
+#[test]
+fn test_csq_header_includes_new_fields() {
+    let header = output::csq_header_line(output::DEFAULT_CSQ_FIELDS);
+    assert!(header.contains("REF_ALLELE"), "Header should include REF_ALLELE");
+    assert!(header.contains("UPLOADED_ALLELE"), "Header should include UPLOADED_ALLELE");
+    assert!(header.contains("FLAGS"), "Header should include FLAGS");
+    assert!(header.contains("SYMBOL_SOURCE"), "Header should include SYMBOL_SOURCE");
+    assert!(header.contains("HGNC_ID"), "Header should include HGNC_ID");
+    assert!(header.contains("MANE|MANE_SELECT"), "Header should include MANE fields");
+    assert!(header.contains("TSL"), "Header should include TSL");
+    assert!(header.contains("APPRIS"), "Header should include APPRIS");
+    assert!(header.contains("TRANSCRIPTION_FACTORS"), "Header should end with TRANSCRIPTION_FACTORS");
+}
+
+#[test]
+fn test_csq_field_count_matches_vep() {
+    // VEP output has exactly 42 fields
+    assert_eq!(output::DEFAULT_CSQ_FIELDS.len(), 42, "DEFAULT_CSQ_FIELDS should have 42 fields");
+
+    // Verify formatting produces 42 pipe-delimited values
+    let vf = mock_vf_missense();
+    let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
+    let field_count = csq.split('|').count();
+    assert_eq!(field_count, 42, "CSQ output should have 42 pipe-delimited fields");
+}
+
+#[test]
+fn test_csq_missense_full_42_field_match() {
+    // Exact expected VEP output for the missense entry from SlDf20upKZNV52SS.vcf:
+    // C|missense_variant|MODERATE|OR4F5|ENSG00000186092|Transcript|ENST00000641515.2|
+    // protein_coding|2/3||||64|4|2|K/Q|Aag/Cag||A|A/C||1||HGNC|HGNC:14825|
+    // MANE_Select|NM_001005484.2|||P1|tolerated_low_confidence(0.06)|benign(0)||||||||||
+    let vf = mock_vf_missense();
+    let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
+    let fields: Vec<&str> = csq.split('|').collect();
+
+    // VEP expected values (all 42 fields)
+    let expected: Vec<&str> = vec![
+        "C",                                  // 0:  Allele
+        "missense_variant",                   // 1:  Consequence
+        "MODERATE",                           // 2:  IMPACT
+        "OR4F5",                              // 3:  SYMBOL
+        "ENSG00000186092",                    // 4:  Gene
+        "Transcript",                         // 5:  Feature_type
+        "ENST00000641515.2",                  // 6:  Feature
+        "protein_coding",                     // 7:  BIOTYPE
+        "2/3",                                // 8:  EXON
+        "",                                   // 9:  INTRON
+        "",                                   // 10: HGVSc
+        "",                                   // 11: HGVSp
+        "64",                                 // 12: cDNA_position
+        "4",                                  // 13: CDS_position
+        "2",                                  // 14: Protein_position
+        "K/Q",                                // 15: Amino_acids
+        "Aag/Cag",                            // 16: Codons
+        "",                                   // 17: Existing_variation
+        "A",                                  // 18: REF_ALLELE
+        "A/C",                                // 19: UPLOADED_ALLELE
+        "",                                   // 20: DISTANCE
+        "1",                                  // 21: STRAND
+        "",                                   // 22: FLAGS
+        "HGNC",                               // 23: SYMBOL_SOURCE
+        "HGNC:14825",                         // 24: HGNC_ID
+        "MANE_Select",                        // 25: MANE
+        "NM_001005484.2",                     // 26: MANE_SELECT
+        "",                                   // 27: MANE_PLUS_CLINICAL
+        "",                                   // 28: TSL
+        "P1",                                 // 29: APPRIS
+        "tolerated_low_confidence(0.06)",     // 30: SIFT
+        "benign(0)",                          // 31: PolyPhen
+        "",                                   // 32: AF
+        "",                                   // 33: CLIN_SIG
+        "",                                   // 34: SOMATIC
+        "",                                   // 35: PHENO
+        "",                                   // 36: PUBMED
+        "",                                   // 37: MOTIF_NAME
+        "",                                   // 38: MOTIF_POS
+        "",                                   // 39: HIGH_INF_POS
+        "",                                   // 40: MOTIF_SCORE_CHANGE
+        "",                                   // 41: TRANSCRIPTION_FACTORS
+    ];
+
+    assert_eq!(fields.len(), expected.len(),
+        "Field count mismatch: got {}, expected {}", fields.len(), expected.len());
+
+    for (i, (got, exp)) in fields.iter().zip(expected.iter()).enumerate() {
+        assert_eq!(got, exp,
+            "Field {} ({}) mismatch: got {:?}, expected {:?}",
+            i, output::DEFAULT_CSQ_FIELDS[i], got, exp);
+    }
+}
+
+#[test]
+fn test_csq_frameshift_full_42_field_match() {
+    use oxivep_core::Consequence;
+
+    let vf = VariationFeature {
+        position: oxivep_core::GenomicPosition::new("3", 319780, 319781, Strand::Forward),
+        allele_string: "GA/G".into(),
+        ref_allele: Allele::from_str("A"),
+        alt_alleles: vec![Allele::Deletion],
+        variation_name: Some("3_319781_A/-".into()),
+        vcf_line: None,
+        vcf_fields: None,
+        transcript_variations: vec![TranscriptVariation {
+            transcript_id: "ENST00000421198.5".into(),
+            gene_id: "ENSG00000134121".into(),
+            gene_symbol: Some("CHL1".into()),
+            biotype: "protein_coding".into(),
+            allele_annotations: vec![AlleleAnnotation {
+                allele: Allele::Deletion,
+                consequences: vec![Consequence::FrameshiftVariant],
+                impact: Impact::High,
+                cdna_position: Some((258, 258)),
+                cds_position: Some((5, 5)),
+                protein_position: Some((2, 2)),
+                amino_acids: Some(("E".into(), "X".into())),
+                codons: Some(("gAg".into(), "gg".into())),
+                exon: Some((3, 5)),
+                intron: None,
+                distance: None,
+                hgvsc: None,
+                hgvsp: None,
+                hgvsg: None,
+                existing_variation: vec![],
+                sift: None,
+                polyphen: None,
+            }],
+            canonical: false,
+            strand: Strand::Forward,
+            source: None,
+            protein_id: None,
+            mane_select: None,
+            mane_plus_clinical: None,
+            tsl: Some(4),
+            appris: None,
+            ccds: None,
+            symbol_source: Some("HGNC".into()),
+            hgnc_id: Some("HGNC:1939".into()),
+            flags: vec!["cds_end_NF".into()],
+        }],
+        existing_variants: vec![],
+        minimised: false,
+        most_severe_consequence: Some(Consequence::FrameshiftVariant),
+    };
+
+    let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
+    let fields: Vec<&str> = csq.split('|').collect();
+
+    // VEP expected for ENST00000421198.5 frameshift entry:
+    // -|frameshift_variant|HIGH|CHL1|ENSG00000134121|Transcript|ENST00000421198.5|
+    // protein_coding|3/5||||258|5|2|E/X|gAg/gg||A|A/-||1|cds_end_NF|HGNC|HGNC:1939||||4|||||||||||||
+    let expected: Vec<&str> = vec![
+        "-",                    // 0:  Allele
+        "frameshift_variant",   // 1:  Consequence
+        "HIGH",                 // 2:  IMPACT
+        "CHL1",                 // 3:  SYMBOL
+        "ENSG00000134121",      // 4:  Gene
+        "Transcript",           // 5:  Feature_type
+        "ENST00000421198.5",    // 6:  Feature
+        "protein_coding",       // 7:  BIOTYPE
+        "3/5",                  // 8:  EXON
+        "",                     // 9:  INTRON
+        "",                     // 10: HGVSc
+        "",                     // 11: HGVSp
+        "258",                  // 12: cDNA_position
+        "5",                    // 13: CDS_position
+        "2",                    // 14: Protein_position
+        "E/X",                  // 15: Amino_acids
+        "gAg/gg",               // 16: Codons
+        "",                     // 17: Existing_variation
+        "A",                    // 18: REF_ALLELE
+        "A/-",                  // 19: UPLOADED_ALLELE
+        "",                     // 20: DISTANCE
+        "1",                    // 21: STRAND
+        "cds_end_NF",           // 22: FLAGS
+        "HGNC",                 // 23: SYMBOL_SOURCE
+        "HGNC:1939",            // 24: HGNC_ID
+        "",                     // 25: MANE
+        "",                     // 26: MANE_SELECT
+        "",                     // 27: MANE_PLUS_CLINICAL
+        "4",                    // 28: TSL
+        "",                     // 29: APPRIS
+        "",                     // 30: SIFT
+        "",                     // 31: PolyPhen
+        "",                     // 32: AF
+        "",                     // 33: CLIN_SIG
+        "",                     // 34: SOMATIC
+        "",                     // 35: PHENO
+        "",                     // 36: PUBMED
+        "",                     // 37: MOTIF_NAME
+        "",                     // 38: MOTIF_POS
+        "",                     // 39: HIGH_INF_POS
+        "",                     // 40: MOTIF_SCORE_CHANGE
+        "",                     // 41: TRANSCRIPTION_FACTORS
+    ];
+
+    assert_eq!(fields.len(), expected.len(),
+        "Field count mismatch: got {}, expected {}", fields.len(), expected.len());
+
+    for (i, (got, exp)) in fields.iter().zip(expected.iter()).enumerate() {
+        assert_eq!(got, exp,
+            "Field {} ({}) mismatch: got {:?}, expected {:?}",
+            i, output::DEFAULT_CSQ_FIELDS[i], got, exp);
+    }
+}
+
+#[test]
+fn test_csq_downstream_variant_match() {
+    use oxivep_core::Consequence;
+
+    // From VEP: downstream_gene_variant on ENST00000492842.2
+    let vf = VariationFeature {
+        position: oxivep_core::GenomicPosition::new("1", 65568, 65568, Strand::Forward),
+        allele_string: "A/C".into(),
+        ref_allele: Allele::from_str("A"),
+        alt_alleles: vec![Allele::from_str("C")],
+        variation_name: Some("1_65568_A/C".into()),
+        vcf_line: None,
+        vcf_fields: None,
+        transcript_variations: vec![TranscriptVariation {
+            transcript_id: "ENST00000492842.2".into(),
+            gene_id: "ENSG00000240361".into(),
+            gene_symbol: Some("OR4G11P".into()),
+            biotype: "transcribed_unprocessed_pseudogene".into(),
+            allele_annotations: vec![AlleleAnnotation {
+                allele: Allele::from_str("C"),
+                consequences: vec![Consequence::DownstreamGeneVariant],
+                impact: Impact::Modifier,
+                cdna_position: None,
+                cds_position: None,
+                protein_position: None,
+                amino_acids: None,
+                codons: None,
+                exon: None,
+                intron: None,
+                distance: Some(1681),
+                hgvsc: None,
+                hgvsp: None,
+                hgvsg: None,
+                existing_variation: vec![],
+                sift: None,
+                polyphen: None,
+            }],
+            canonical: false,
+            strand: Strand::Forward,
+            source: None,
+            protein_id: None,
+            mane_select: None,
+            mane_plus_clinical: None,
+            tsl: None,
+            appris: None,
+            ccds: None,
+            symbol_source: Some("HGNC".into()),
+            hgnc_id: Some("HGNC:31276".into()),
+            flags: vec![],
+        }],
+        existing_variants: vec![],
+        minimised: false,
+        most_severe_consequence: Some(Consequence::DownstreamGeneVariant),
+    };
+
+    let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
+    let fields: Vec<&str> = csq.split('|').collect();
+
+    // VEP expected:
+    // C|downstream_gene_variant|MODIFIER|OR4G11P|ENSG00000240361|Transcript|ENST00000492842.2|
+    // transcribed_unprocessed_pseudogene|||||||||||A|A/C|1681|1||HGNC|HGNC:31276|||||||||||||||||
+    assert_eq!(fields.len(), 42);
+    assert_eq!(fields[0], "C");
+    assert_eq!(fields[1], "downstream_gene_variant");
+    assert_eq!(fields[2], "MODIFIER");
+    assert_eq!(fields[3], "OR4G11P");
+    assert_eq!(fields[7], "transcribed_unprocessed_pseudogene");
+    assert_eq!(fields[18], "A");
+    assert_eq!(fields[19], "A/C");
+    assert_eq!(fields[20], "1681");
+    assert_eq!(fields[21], "1");
+    assert_eq!(fields[23], "HGNC");
+    assert_eq!(fields[24], "HGNC:31276");
+    // All annotation fields should be empty for downstream variant
+    assert_eq!(fields[8], "");   // EXON
+    assert_eq!(fields[12], "");  // cDNA_position
+    assert_eq!(fields[13], "");  // CDS_position
+    assert_eq!(fields[15], "");  // Amino_acids
+    assert_eq!(fields[16], "");  // Codons
+}
+
+#[test]
+fn test_csq_intron_variant_match() {
+    use oxivep_core::Consequence;
+
+    // From VEP: intron_variant on ENST00000272065.10
+    let vf = VariationFeature {
+        position: oxivep_core::GenomicPosition::new("2", 265023, 265023, Strand::Forward),
+        allele_string: "C/T".into(),
+        ref_allele: Allele::from_str("C"),
+        alt_alleles: vec![Allele::from_str("T")],
+        variation_name: Some("2_265023_C/T".into()),
+        vcf_line: None,
+        vcf_fields: None,
+        transcript_variations: vec![TranscriptVariation {
+            transcript_id: "ENST00000272065.10".into(),
+            gene_id: "ENSG00000143727".into(),
+            gene_symbol: Some("ACP1".into()),
+            biotype: "protein_coding".into(),
+            allele_annotations: vec![AlleleAnnotation {
+                allele: Allele::from_str("T"),
+                consequences: vec![Consequence::IntronVariant],
+                impact: Impact::Modifier,
+                cdna_position: None,
+                cds_position: None,
+                protein_position: None,
+                amino_acids: None,
+                codons: None,
+                exon: None,
+                intron: Some((1, 5)),
+                distance: None,
+                hgvsc: None,
+                hgvsp: None,
+                hgvsg: None,
+                existing_variation: vec![],
+                sift: None,
+                polyphen: None,
+            }],
+            canonical: false,
+            strand: Strand::Forward,
+            source: None,
+            protein_id: None,
+            mane_select: Some("NM_004300.4".into()),
+            mane_plus_clinical: None,
+            tsl: Some(1),
+            appris: Some("P3".into()),
+            ccds: None,
+            symbol_source: Some("HGNC".into()),
+            hgnc_id: Some("HGNC:122".into()),
+            flags: vec![],
+        }],
+        existing_variants: vec![],
+        minimised: false,
+        most_severe_consequence: Some(Consequence::IntronVariant),
+    };
+
+    let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
+    let fields: Vec<&str> = csq.split('|').collect();
+
+    // VEP expected:
+    // T|intron_variant|MODIFIER|ACP1|ENSG00000143727|Transcript|ENST00000272065.10|
+    // protein_coding||1/5|||||||||C|C/T||1||HGNC|HGNC:122|MANE_Select|NM_004300.4||1|P3||||||||||||
+    assert_eq!(fields.len(), 42);
+    assert_eq!(fields[0], "T");
+    assert_eq!(fields[1], "intron_variant");
+    assert_eq!(fields[2], "MODIFIER");
+    assert_eq!(fields[3], "ACP1");
+    assert_eq!(fields[7], "protein_coding");
+    assert_eq!(fields[8], "");     // EXON empty for intron
+    assert_eq!(fields[9], "1/5");  // INTRON
+    assert_eq!(fields[18], "C");
+    assert_eq!(fields[19], "C/T");
+    assert_eq!(fields[21], "1");
+    assert_eq!(fields[23], "HGNC");
+    assert_eq!(fields[24], "HGNC:122");
+    assert_eq!(fields[25], "MANE_Select");
+    assert_eq!(fields[26], "NM_004300.4");
+    assert_eq!(fields[28], "1");   // TSL
+    assert_eq!(fields[29], "P3");  // APPRIS
 }

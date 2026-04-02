@@ -582,79 +582,114 @@
 // OxiVEP Client-Side Annotation Engine
 // ============================================================
 
-// Embedded example GFF3 gene model
+// Embedded example GFF3 gene model — real Ensembl data (GRCh38 release 115)
+// OR4F5: ENSG00000186092, chr1:65419-71585 (+), 3 exons, protein_coding
+// lncRNA: ENSG00000290826, chr1:57598-64116 (+), 3 exons, lncRNA
 const EXAMPLE_GFF3 = `##gff-version 3
-chr1\tensembl\tgene\t1000\t5000\t.\t+\t.\tID=gene:ENSG00000001;Name=BRCA1;biotype=protein_coding
-chr1\tensembl\tmRNA\t1000\t5000\t.\t+\t.\tID=transcript:ENST00000001;Parent=gene:ENSG00000001;biotype=protein_coding;tag=Ensembl_canonical
-chr1\tensembl\texon\t1000\t1200\t.\t+\t.\tID=exon:ENSE00000001;Parent=transcript:ENST00000001;rank=1
-chr1\tensembl\texon\t2000\t2300\t.\t+\t.\tID=exon:ENSE00000002;Parent=transcript:ENST00000001;rank=2
-chr1\tensembl\texon\t4000\t5000\t.\t+\t.\tID=exon:ENSE00000003;Parent=transcript:ENST00000001;rank=3
-chr1\tensembl\tCDS\t1050\t1200\t.\t+\t0\tID=CDS:ENSP00000001;Parent=transcript:ENST00000001
-chr1\tensembl\tCDS\t2000\t2300\t.\t+\t0\tID=CDS:ENSP00000001;Parent=transcript:ENST00000001
-chr1\tensembl\tCDS\t4000\t4500\t.\t+\t1\tID=CDS:ENSP00000001;Parent=transcript:ENST00000001
-chr1\tensembl\tgene\t10000\t12000\t.\t+\t.\tID=gene:ENSG00000002;Name=TP53;biotype=lncRNA
-chr1\tensembl\tlnc_RNA\t10000\t12000\t.\t+\t.\tID=transcript:ENST00000002;Parent=gene:ENSG00000002;biotype=lncRNA
-chr1\tensembl\texon\t10000\t10500\t.\t+\t.\tID=exon:ENSE00000010;Parent=transcript:ENST00000002;rank=1
-chr1\tensembl\texon\t11500\t12000\t.\t+\t.\tID=exon:ENSE00000011;Parent=transcript:ENST00000002;rank=2`;
+1\thavana\tgene\t65419\t71585\t.\t+\t.\tID=gene:ENSG00000186092;Name=OR4F5;biotype=protein_coding;gene_id=ENSG00000186092;version=7
+1\thavana\tmRNA\t65419\t71585\t.\t+\t.\tID=transcript:ENST00000641515;Parent=gene:ENSG00000186092;Name=OR4F5-201;biotype=protein_coding;tag=Ensembl_canonical,MANE_Select;transcript_id=ENST00000641515;version=2
+1\thavana\texon\t65419\t65433\t.\t+\t.\tParent=transcript:ENST00000641515;Name=ENSE00003812156;exon_id=ENSE00003812156;rank=1;version=1
+1\thavana\texon\t65520\t65573\t.\t+\t.\tParent=transcript:ENST00000641515;Name=ENSE00003813641;exon_id=ENSE00003813641;rank=2;version=1
+1\thavana\tCDS\t65565\t65573\t.\t+\t0\tID=CDS:ENSP00000493376;Parent=transcript:ENST00000641515;protein_id=ENSP00000493376;version=2
+1\thavana\texon\t69037\t71585\t.\t+\t.\tParent=transcript:ENST00000641515;Name=ENSE00003813949;exon_id=ENSE00003813949;rank=3;version=1
+1\thavana\tCDS\t69037\t70008\t.\t+\t0\tID=CDS:ENSP00000493376;Parent=transcript:ENST00000641515;protein_id=ENSP00000493376;version=2
+1\thavana\tgene\t57598\t64116\t.\t+\t.\tID=gene:ENSG00000290826;biotype=lncRNA;gene_id=ENSG00000290826;version=2
+1\thavana\tlnc_RNA\t57598\t64116\t.\t+\t.\tID=transcript:ENST00000642116;Parent=gene:ENSG00000290826;biotype=lncRNA;tag=Ensembl_canonical;transcript_id=ENST00000642116;version=1
+1\thavana\texon\t57598\t57653\t.\t+\t.\tParent=transcript:ENST00000642116;Name=ENSE00003812686;exon_id=ENSE00003812686;rank=1;version=1
+1\thavana\texon\t58700\t58856\t.\t+\t.\tParent=transcript:ENST00000642116;Name=ENSE00003812505;exon_id=ENSE00003812505;rank=2;version=1
+1\thavana\texon\t62916\t64116\t.\t+\t.\tParent=transcript:ENST00000642116;Name=ENSE00003811818;exon_id=ENSE00003811818;rank=3;version=1`;
+
+// Real spliced transcript sequences from Ensembl GRCh38 (fetched via REST API)
+const SPLICED_SEQS = {
+  'ENST00000641515': 'CCCAGATCTCTTCAGTTTTTATGCCTCATTCTGTGAAAATTGCTGTAGTCTCTTCCAGTTATGAAGAAGGTAACTGCAGAGGCTATTTCCTGGAATGAATCAACGAGTGAAACGAATAACTCTATGGTGACTGAATTCATTTTTCTGGGTCTCTCTGATTCTCAGGAACTCCAGACCTTCCTATTTATGTTGTTTTTTGTATTCTATGGAGGAATCGTGTTTGGAAACCTTCTTATTGTCATAACAGTGGTATCTGACTCCCACCTTCACTCTCCCATGTACTTCCTGCTAGCCAACCTCTCACTCATTGATCTGTCTCTGTCTTCAGTCACAGCCCCCAAGATGATTACTGACTTTTTCAGCCAGCGCAAAGTCATCTCTTTCAAGGGCTGCCTTGTTCAGATATTTCTCCTTCACTTCTTTGGTGGGAGTGAGATGGTGATCCTCATAGCCATGGGCTTTGACAGATATATAGCAATATGCAAGCCCCTACACTACACTACAATTATGTGTGGCAACGCATGTGTCGGCATTATGGCTGTCACATGGGGAATTGGCTTTCTCCATTCGGTGAGCCAGTTGGCGTTTGCCGTGCACTTACTCTTCTGTGGTCCCAATGAGGTCGATAGTTTTTATTGTGACCTTCCTAGGGTAATCAAACTTGCCTGTACAGATACCTACAGGCTAGATATTATGGTCATTGCTAACAGTGGTGTGCTCACTGTGTGTTCTTTTGTTCTTCTAATCATCTCATACACTATCATCCTAATGACCATCCAGCATCGCCCTTTAGATAAGTCGTCCAAAGCTCTGTCCACTTTGACTGCTCACATTACAGTAGTTCTTTTGTTCTTTGGACCATGTGTCTTTATTTATGCCTGGCCATTCCCCATCAAGTCATTAGATAAATTCCTTGCTGTATTTTATTCTGTGATCACCCCTCTCTTGAACCCAATTATATACACACTGAGGAACAAAGACATGAAGACGGCAATAAGACAGCTGAGAAAATGGGATGCACATTCTAGTGTAAAGTTTTAG',
+  // cdnaCodingStart=60, cdnaCodingEnd=1040 (1-based in spliced seq)
+};
+
+// Standard genetic code (NCBI translation table 1)
+const CODON_TABLE = {
+  'TTT':'F','TTC':'F','TTA':'L','TTG':'L','CTT':'L','CTC':'L','CTA':'L','CTG':'L',
+  'ATT':'I','ATC':'I','ATA':'I','ATG':'M','GTT':'V','GTC':'V','GTA':'V','GTG':'V',
+  'TCT':'S','TCC':'S','TCA':'S','TCG':'S','CCT':'P','CCC':'P','CCA':'P','CCG':'P',
+  'ACT':'T','ACC':'T','ACA':'T','ACG':'T','GCT':'A','GCC':'A','GCA':'A','GCG':'A',
+  'TAT':'Y','TAC':'Y','TAA':'*','TAG':'*','CAT':'H','CAC':'H','CAA':'Q','CAG':'Q',
+  'AAT':'N','AAC':'N','AAA':'K','AAG':'K','GAT':'D','GAC':'D','GAA':'E','GAG':'E',
+  'TGT':'C','TGC':'C','TGA':'*','TGG':'W','CGT':'R','CGC':'R','CGA':'R','CGG':'R',
+  'AGT':'S','AGC':'S','AGA':'R','AGG':'R','GGT':'G','GGC':'G','GGA':'G','GGG':'G'
+};
+
+const AA3 = {'A':'Ala','R':'Arg','N':'Asn','D':'Asp','C':'Cys','E':'Glu','Q':'Gln','G':'Gly','H':'His','I':'Ile','L':'Leu','K':'Lys','M':'Met','F':'Phe','P':'Pro','S':'Ser','T':'Thr','W':'Trp','Y':'Tyr','V':'Val','*':'Ter'};
+
+function translateCodon(codon) {
+  return CODON_TABLE[codon.toUpperCase()] || 'X';
+}
+
+function complement(base) {
+  return {A:'T',T:'A',C:'G',G:'C',a:'t',t:'a',c:'g',g:'c'}[base] || base;
+}
+
+function revComp(seq) {
+  return seq.split('').reverse().map(complement).join('');
+}
 
 const EXAMPLES = {
   all_consequences: `##fileformat=VCFv4.2
-## All major consequence types demonstrated on a 2-gene model
+## All major consequence types on real OR4F5 (ENSG00000186092) + lncRNA (ENSG00000290826)
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-chr1\t500\trs001\tA\tG\t30\tPASS\t.\t## upstream_gene_variant (500bp before gene)
-chr1\t1020\trs002\tA\tG\t30\tPASS\t.\t## 5_prime_UTR_variant (before CDS start)
-chr1\t1100\trs003\tA\tG\t30\tPASS\t.\t## missense_variant (in CDS exon 1)
-chr1\t1201\trs004\tG\tA\t30\tPASS\t.\t## splice_donor_variant (1st intronic base)
-chr1\t1500\trs005\tC\tT\t30\tPASS\t.\t## intron_variant (mid-intron)
-chr1\t1999\trs006\tA\tG\t30\tPASS\t.\t## splice_acceptor_variant (last intronic base)
-chr1\t2100\trs007\tA\tG\t30\tPASS\t.\t## missense_variant (in CDS exon 2)
-chr1\t4600\trs008\tC\tT\t30\tPASS\t.\t## 3_prime_UTR_variant (after CDS end)
-chr1\t6000\trs009\tT\tC\t30\tPASS\t.\t## downstream + upstream (between 2 genes)
-chr1\t10100\trs010\tA\tG\t30\tPASS\t.\t## non_coding_transcript_exon_variant (lncRNA exon)
-chr1\t100000\trs011\tA\tG\t30\tPASS\t.\t## intergenic_variant (far from any gene)
-chr1\t1100\trs012\tAC\tA\t30\tPASS\t.\t## frameshift_variant (1bp deletion in CDS)`,
+1\t60000\trs001\tA\tG\t30\tPASS\t.\t## upstream_gene_variant (5419bp before OR4F5)
+1\t65425\trs002\tA\tG\t30\tPASS\t.\t## 5_prime_UTR_variant (exon 1, before CDS)
+1\t65568\trs003\tA\tG\t30\tPASS\t.\t## missense_variant K>E (CDS exon 2, pos 4, protein 2)
+1\t65574\trs004\tG\tA\t30\tPASS\t.\t## splice_donor_variant (1st intronic base after exon 2)
+1\t67000\trs005\tC\tT\t30\tPASS\t.\t## intron_variant (mid-intron 2)
+1\t69036\trs006\tA\tG\t30\tPASS\t.\t## splice_acceptor_variant (last intronic base before exon 3)
+1\t69080\trs007\tC\tT\t30\tPASS\t.\t## missense_variant T>M (CDS exon 3, codon aCg/aTg)
+1\t70100\trs008\tC\tT\t30\tPASS\t.\t## 3_prime_UTR_variant (exon 3 after CDS)
+1\t64500\trs009\tT\tC\t30\tPASS\t.\t## upstream OR4F5 + downstream lncRNA
+1\t57620\trs010\tA\tG\t30\tPASS\t.\t## non_coding_transcript_exon_variant (lncRNA exon 1)
+1\t200000\trs011\tA\tG\t30\tPASS\t.\t## intergenic_variant (far from any gene)
+1\t69080\trs012\tCA\tC\t30\tPASS\t.\t## frameshift_variant (1bp deletion in CDS)`,
 
   clinical: `##fileformat=VCFv4.2
-## Simulated clinical variants in BRCA1-like gene
+## Clinical-style variants in OR4F5 (ENSG00000186092, ENST00000641515)
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-chr1\t1050\trs_start\tA\tG\t50\tPASS\t.\t## start_lost (1st base of ATG start codon)
-chr1\t1100\trs_missense\tA\tG\t50\tPASS\t.\t## missense_variant (amino acid change)
-chr1\t1100\trs_fs\tAC\tA\t50\tPASS\t.\t## frameshift_variant (1bp del, not divisible by 3)
-chr1\t1100\trs_inframe\tACGT\tA\t50\tPASS\t.\t## inframe_deletion (3bp del, divisible by 3)
-chr1\t1201\trs_splice\tG\tA\t50\tPASS\t.\t## splice_donor_variant (GT dinucleotide)
-chr1\t1999\trs_splice2\tA\tG\t50\tPASS\t.\t## splice_acceptor_variant (AG dinucleotide)`,
+1\t65565\trs_start\tA\tG\t50\tPASS\t.\t## start_lost (1st base of ATG, CDS pos 1)
+1\t65568\trs_missense\tA\tG\t50\tPASS\t.\t## missense_variant K>E (CDS pos 4, protein 2)
+1\t69080\trs_fs\tCA\tC\t50\tPASS\t.\t## frameshift_variant (1bp del in CDS)
+1\t69080\trs_inframe\tCACG\tC\t50\tPASS\t.\t## inframe_deletion (3bp del in CDS)
+1\t65574\trs_splice\tG\tA\t50\tPASS\t.\t## splice_donor_variant (intron 2 start)
+1\t69036\trs_splice2\tA\tG\t50\tPASS\t.\t## splice_acceptor_variant (intron 2 end)`,
 
   indels: `##fileformat=VCFv4.2
-## Insertion and deletion variants
+## Insertion and deletion variants in OR4F5 (ENST00000641515)
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-chr1\t1100\t.\tA\tATTT\t30\tPASS\t.\t## 3bp insertion in CDS (inframe_insertion)
-chr1\t1100\t.\tA\tATT\t30\tPASS\t.\t## 2bp insertion in CDS (frameshift)
-chr1\t1100\t.\tAC\tA\t30\tPASS\t.\t## 1bp deletion in CDS (frameshift)
-chr1\t1100\t.\tACGT\tA\t30\tPASS\t.\t## 3bp deletion in CDS (inframe_deletion)
-chr1\t1020\t.\tA\tACCC\t30\tPASS\t.\t## insertion in 5'UTR
-chr1\t4600\t.\tCA\tC\t30\tPASS\t.\t## deletion in 3'UTR
-chr1\t1100\t.\tA\tG,T\t30\tPASS\t.\t## multi-allelic SNV (2 alt alleles)
-chr1\t1100\t.\tACG\tA,ACGT\t30\tPASS\t.\t## multi-allelic with indel`,
+1\t69080\t.\tC\tCTTT\t30\tPASS\t.\t## 3bp insertion in CDS (inframe_insertion)
+1\t69080\t.\tC\tCTT\t30\tPASS\t.\t## 2bp insertion in CDS (frameshift)
+1\t69080\t.\tCA\tC\t30\tPASS\t.\t## 1bp deletion in CDS (frameshift)
+1\t69080\t.\tCACG\tC\t30\tPASS\t.\t## 3bp deletion in CDS (inframe_deletion)
+1\t65530\t.\tA\tACCC\t30\tPASS\t.\t## insertion in 5'UTR
+1\t70100\t.\tCA\tC\t30\tPASS\t.\t## deletion in 3'UTR
+1\t69080\t.\tC\tT,A\t30\tPASS\t.\t## multi-allelic SNV (2 alt alleles)
+1\t69080\t.\tCACG\tC,CACGT\t30\tPASS\t.\t## multi-allelic with indel`,
 
   splice: `##fileformat=VCFv4.2
-## Splice site variants at different positions relative to exon-intron boundaries
-## Gene model: Exon1 (1000-1200) | Intron1 (1201-1999) | Exon2 (2000-2300)
+## Splice site variants at OR4F5 exon2/intron2/exon3 boundaries
+## Exon2: 65520-65573 | Intron2: 65574-69036 | Exon3: 69037-71585
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-chr1\t1201\t.\tG\tA\t30\tPASS\t.\t## splice_donor (intron pos +1, HIGH impact)
-chr1\t1202\t.\tT\tC\t30\tPASS\t.\t## splice_donor (intron pos +2, HIGH impact)
-chr1\t1205\t.\tC\tA\t30\tPASS\t.\t## splice_region (intron pos +5)
-chr1\t1500\t.\tA\tG\t30\tPASS\t.\t## intron_variant (mid-intron, MODIFIER)
-chr1\t1998\t.\tC\tT\t30\tPASS\t.\t## splice_acceptor (intron pos -2, HIGH impact)
-chr1\t1999\t.\tA\tG\t30\tPASS\t.\t## splice_acceptor (intron pos -1, HIGH impact)`,
+1\t65574\t.\tG\tA\t30\tPASS\t.\t## splice_donor_variant (intron2 +1, HIGH)
+1\t65575\t.\tT\tC\t30\tPASS\t.\t## splice_donor_variant (intron2 +2, HIGH)
+1\t65578\t.\tC\tA\t30\tPASS\t.\t## splice_region_variant (intron2 +5)
+1\t67000\t.\tA\tG\t30\tPASS\t.\t## intron_variant (mid-intron2, MODIFIER)
+1\t69035\t.\tC\tT\t30\tPASS\t.\t## splice_acceptor_variant (intron2 -2, HIGH)
+1\t69036\t.\tA\tG\t30\tPASS\t.\t## splice_acceptor_variant (intron2 -1, HIGH)`,
 
   noncoding: `##fileformat=VCFv4.2
-## Non-coding and intergenic variants
+## Non-coding and intergenic variants near ENSG00000290826 (lncRNA, ENST00000642116)
+## lncRNA exons: 57598-57653, 58700-58856, 62916-64116
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-chr1\t10100\t.\tA\tG\t30\tPASS\t.\t## non_coding_transcript_exon_variant (lncRNA exon)
-chr1\t11000\t.\tC\tT\t30\tPASS\t.\t## intron_variant in lncRNA
-chr1\t500\t.\tG\tA\t30\tPASS\t.\t## upstream_gene_variant
-chr1\t5500\t.\tT\tC\t30\tPASS\t.\t## downstream_gene_variant
-chr1\t100000\t.\tA\tG\t30\tPASS\t.\t## intergenic_variant`,
+1\t57620\t.\tA\tG\t30\tPASS\t.\t## non_coding_transcript_exon_variant (lncRNA exon 1)
+1\t59000\t.\tC\tT\t30\tPASS\t.\t## intron_variant in lncRNA (intron 2)
+1\t55000\t.\tG\tA\t30\tPASS\t.\t## upstream_gene_variant (before lncRNA)
+1\t64200\t.\tT\tC\t30\tPASS\t.\t## downstream_gene_variant (after lncRNA)
+1\t200000\t.\tA\tG\t30\tPASS\t.\t## intergenic_variant (far from any gene)`,
 };
 
 // Parse GFF3 into transcript models
@@ -720,7 +755,8 @@ function parseGFF3(text) {
       id: tid, gene, biotype: tr.biotype, chr: tr.chr, start: tr.start, end: tr.end, strand: tr.strand,
       exons: trExons, isCoding, codingStart, codingEnd, cdnaCodingStart, cdnaCodingEnd,
       canonical: tr.canonical||false,
-      proteinId: trCds.length ? trCds[0].proteinId : null
+      proteinId: trCds.length ? trCds[0].proteinId : null,
+      splicedSeq: SPLICED_SEQS[tid] || null
     });
   }
   return result;
@@ -782,7 +818,21 @@ function predict(variant, transcripts, distance) {
 }
 
 function predictAllele(start, end, ref, alt, tr, dist) {
-  const r = { consequences: [], impact: 'MODIFIER', cdna: null, cds: null, protein: null, aa: null, codons: null, exon: null, intron: null, dist: null };
+  const r = { consequences: [], impact: 'MODIFIER', cdna: null, cds: null, protein: null, aa: null, codons: null, exon: null, intron: null, dist: null, hgvsc: null, hgvsp: null, hgvsg: null };
+
+  // --- HGVSg (genomic) ---
+  const gChr = tr.chr;
+  if (ref === '-') {
+    r.hgvsg = `${gChr}:g.${start-1}_${start}ins${alt}`;
+  } else if (alt === '-') {
+    r.hgvsg = end > start ? `${gChr}:g.${start}_${end}del` : `${gChr}:g.${start}del`;
+  } else if (ref.length === 1 && alt.length === 1) {
+    r.hgvsg = `${gChr}:g.${start}${ref}>${alt}`;
+  } else {
+    r.hgvsg = `${gChr}:g.${start}_${end}delins${alt}`;
+  }
+
+  // --- Upstream / Downstream / Intergenic ---
   if (start > tr.end || end < tr.start) {
     if (start > tr.end) r.dist = start - tr.end;
     else r.dist = tr.start - end;
@@ -794,15 +844,63 @@ function predictAllele(start, end, ref, alt, tr, dist) {
     }
     return r;
   }
-  // Check splice sites
+
+  // --- Splice site detection (matches Rust CLI splice.rs) ---
   const exons = tr.exons;
+  // Build intron list
+  const introns = [];
   for (let i = 0; i < exons.length - 1; i++) {
-    const iStart = exons[i].end + 1, iEnd = exons[i+1].start - 1;
-    if (iStart > iEnd) continue;
-    if (start >= iStart && start <= Math.min(iStart+1, iEnd)) { r.consequences.push('splice_donor_variant'); r.impact = 'HIGH'; }
-    if (start >= Math.max(iEnd-1, iStart) && start <= iEnd) { r.consequences.push('splice_acceptor_variant'); r.impact = 'HIGH'; }
+    introns.push({ start: exons[i].end + 1, end: exons[i + 1].start - 1, idx: i });
   }
-  // Exon/intron
+  let hasSpliceDonorAcceptor = false;
+  for (const intron of introns) {
+    if (intron.start > intron.end) continue;
+    // Splice donor: first 2 intronic bases (forward: intron start; reverse: intron end)
+    const donorStart = tr.strand === 1 ? intron.start : intron.end - 1;
+    const donorEnd = tr.strand === 1 ? intron.start + 1 : intron.end;
+    if (start >= donorStart && start <= donorEnd) { r.consequences.push('splice_donor_variant'); hasSpliceDonorAcceptor = true; }
+    // Splice acceptor: last 2 intronic bases
+    const accStart = tr.strand === 1 ? intron.end - 1 : intron.start;
+    const accEnd = tr.strand === 1 ? intron.end : intron.start + 1;
+    if (start >= accStart && start <= accEnd) { r.consequences.push('splice_acceptor_variant'); hasSpliceDonorAcceptor = true; }
+  }
+
+  // Extended splice variants (only if not already essential splice)
+  if (!hasSpliceDonorAcceptor) {
+    for (const intron of introns) {
+      if (intron.start > intron.end) continue;
+      const iLen = intron.end - intron.start + 1;
+      // Offsets from donor (5' end of intron)
+      const d5 = tr.strand === 1 ? start - intron.start : intron.end - start;
+      // Offsets from acceptor (3' end of intron)
+      const d3 = tr.strand === 1 ? intron.end - start : start - intron.start;
+
+      if (start >= intron.start && start <= intron.end) {
+        // Splice donor 5th base: position +5 from donor
+        if (d5 === 4) r.consequences.push('splice_donor_5th_base_variant');
+        // Splice donor region: positions +3 to +6 from donor
+        if (d5 >= 2 && d5 <= 5) r.consequences.push('splice_donor_region_variant');
+        // Splice polypyrimidine tract: positions -17 to -3 from acceptor (VEP: intron_end-16 to intron_end-2)
+        if (d3 >= 2 && d3 <= 16) r.consequences.push('splice_polypyrimidine_tract_variant');
+        // Splice region: intronic positions 3-8 from either boundary
+        // VEP excludes splice_region when splice_donor_region or splice_donor_5th_base is present
+        const hasDonorSpecific = (d5 >= 2 && d5 <= 5) || (d5 === 4);
+        if (!hasDonorSpecific && ((d5 >= 2 && d5 <= 7) || (d3 >= 2 && d3 <= 7))) r.consequences.push('splice_region_variant');
+      }
+      // Splice region: exonic positions 1-3 from boundary
+      const prevExon = exons[intron.idx], nextExon = exons[intron.idx + 1];
+      if (start >= prevExon.start && start <= prevExon.end) {
+        const distToEnd = prevExon.end - start;
+        if (distToEnd <= 2) r.consequences.push('splice_region_variant');
+      }
+      if (start >= nextExon.start && start <= nextExon.end) {
+        const distToStart = start - nextExon.start;
+        if (distToStart <= 2) r.consequences.push('splice_region_variant');
+      }
+    }
+  }
+
+  // --- Exon/intron detection ---
   let inExon = false, exonIdx = -1;
   for (let i = 0; i < exons.length; i++) {
     if (start >= exons[i].start && start <= exons[i].end) { inExon = true; exonIdx = i; r.exon = `${i+1}/${exons.length}`; break; }
@@ -812,7 +910,8 @@ function predictAllele(start, end, ref, alt, tr, dist) {
       if (start > exons[i].end && start < exons[i+1].start) { r.intron = `${i+1}/${exons.length-1}`; break; }
     }
   }
-  // cDNA mapping
+
+  // --- cDNA mapping ---
   let cdnaPos = 0;
   for (const ex of exons) {
     if (start >= ex.start && start <= ex.end) {
@@ -821,6 +920,43 @@ function predictAllele(start, end, ref, alt, tr, dist) {
     }
     cdnaPos += ex.end - ex.start + 1;
   }
+
+  // --- Intronic HGVS offset computation ---
+  let intronicOffset = null;
+  let intronicCdna = null;
+  if (!inExon && r.intron) {
+    // Find nearest exon boundary for intronic offset notation
+    for (const intron of introns) {
+      if (start >= intron.start && start <= intron.end) {
+        const dDonor = tr.strand === 1 ? start - intron.start + 1 : intron.end - start + 1;
+        const dAcceptor = tr.strand === 1 ? intron.end - start + 1 : start - intron.start + 1;
+        if (dDonor <= dAcceptor) {
+          // Closer to upstream exon
+          const upExon = exons[intron.idx];
+          let cdnaBoundary = 0;
+          for (const ex of exons) {
+            if (ex === upExon) { cdnaBoundary += (tr.strand === 1 ? ex.end - ex.start + 1 : ex.end - ex.start + 1); break; }
+            cdnaBoundary += ex.end - ex.start + 1;
+          }
+          intronicCdna = cdnaBoundary;
+          intronicOffset = '+' + dDonor;
+        } else {
+          // Closer to downstream exon
+          const downExon = exons[intron.idx + 1];
+          let cdnaBoundary = 0;
+          for (const ex of exons) {
+            cdnaBoundary += ex.end - ex.start + 1;
+            if (ex === downExon) { cdnaBoundary -= (ex.end - ex.start); break; }
+          }
+          intronicCdna = cdnaBoundary;
+          intronicOffset = '-' + dAcceptor;
+        }
+        break;
+      }
+    }
+  }
+
+  // --- Coding / non-coding consequence ---
   if (tr.isCoding && inExon) {
     const inCoding = start >= tr.codingStart && start <= tr.codingEnd;
     const in5utr = tr.strand === 1 ? start < tr.codingStart : start > tr.codingEnd;
@@ -842,21 +978,114 @@ function predictAllele(start, end, ref, alt, tr, dist) {
       } else if (ref.length !== alt.length) {
         const d = Math.abs(ref.length - alt.length);
         if (d % 3 !== 0) { r.consequences.push('frameshift_variant'); r.impact = 'HIGH'; }
-        else { r.consequences.push('protein_altering_variant'); r.impact = 'MODERATE'; }
+        else if (ref.length > alt.length) { r.consequences.push('inframe_deletion'); r.impact = 'MODERATE'; }
+        else { r.consequences.push('inframe_insertion'); r.impact = 'MODERATE'; }
       } else {
-        r.consequences.push('missense_variant');
-        r.impact = 'MODERATE';
+        // SNV in coding region — real codon translation
+        if (r.cds && tr.splicedSeq && tr.cdnaCodingStart) {
+          const cdsIdx = r.cds - 1;
+          const codonNum = Math.floor(cdsIdx / 3);
+          const codonOffset = cdsIdx % 3;
+          const cdsStart0 = tr.cdnaCodingStart - 1;
+          const codonStart = cdsStart0 + codonNum * 3;
+          const refCodon = tr.splicedSeq.substring(codonStart, codonStart + 3).toUpperCase();
+          if (refCodon.length === 3) {
+            const altBase = tr.strand === -1 ? complement(alt) : alt;
+            const altCodon = refCodon.substring(0, codonOffset) + altBase.toUpperCase() + refCodon.substring(codonOffset + 1);
+            const refAA = translateCodon(refCodon);
+            const altAA = translateCodon(altCodon);
+            r.aa = refAA === altAA ? refAA : `${refAA}/${altAA}`;
+            let refCdn = refCodon.toLowerCase(), altCdn = altCodon.toLowerCase();
+            refCdn = refCdn.substring(0, codonOffset) + refCdn[codonOffset].toUpperCase() + refCdn.substring(codonOffset + 1);
+            altCdn = altCdn.substring(0, codonOffset) + altCdn[codonOffset].toUpperCase() + altCdn.substring(codonOffset + 1);
+            r.codons = `${refCdn}/${altCdn}`;
+            if (r.cds <= 3 && refAA === 'M' && altAA !== 'M') {
+              r.consequences.push('start_lost'); r.impact = 'HIGH';
+            } else if (refAA === '*' && altAA === '*') {
+              r.consequences.push('stop_retained_variant'); r.impact = 'LOW';
+            } else if (refAA === '*' && altAA !== '*') {
+              r.consequences.push('stop_lost'); r.impact = 'HIGH';
+            } else if (altAA === '*' && refAA !== '*') {
+              r.consequences.push('stop_gained'); r.impact = 'HIGH';
+            } else if (refAA === altAA) {
+              r.consequences.push('synonymous_variant'); r.impact = 'LOW';
+            } else {
+              r.consequences.push('missense_variant'); r.impact = 'MODERATE';
+            }
+            // HGVSp
+            const pid = tr.proteinId || tr.id;
+            if (refAA === altAA) {
+              r.hgvsp = `${pid}:p.${AA3[refAA]||refAA}${r.protein}=`;
+            } else if (altAA === '*') {
+              r.hgvsp = `${pid}:p.${AA3[refAA]||refAA}${r.protein}Ter`;
+            } else {
+              r.hgvsp = `${pid}:p.${AA3[refAA]||refAA}${r.protein}${AA3[altAA]||altAA}`;
+            }
+          } else {
+            r.consequences.push('missense_variant'); r.impact = 'MODERATE';
+          }
+        } else {
+          r.consequences.push('missense_variant'); r.impact = 'MODERATE';
+        }
+      }
+      // HGVSc for coding variants
+      if (r.cds) {
+        const tid = tr.id;
+        const refB = (tr.strand === -1 ? complement(ref) : ref).toUpperCase();
+        const altB = (tr.strand === -1 ? complement(alt) : alt).toUpperCase();
+        if (ref === '-') r.hgvsc = `${tid}:c.${r.cds}_${r.cds+1}ins${altB}`;
+        else if (alt === '-') r.hgvsc = end > start ? `${tid}:c.${r.cds}_${r.cds + ref.length - 1}del` : `${tid}:c.${r.cds}del`;
+        else r.hgvsc = `${tid}:c.${r.cds}${refB}>${altB}`;
       }
     }
   } else if (!tr.isCoding) {
-    if (inExon) { r.consequences.push('non_coding_transcript_exon_variant'); r.consequences.push('non_coding_transcript_variant'); }
+    // Non-coding transcript — match CLI: only add non_coding_transcript_variant for intronic
+    if (inExon) {
+      r.consequences.push('non_coding_transcript_exon_variant');
+    }
   }
+
+  // Intronic
   if (!inExon && r.consequences.filter(c => !c.includes('splice')).length === 0) {
     r.consequences.push('intron_variant');
+    if (!tr.isCoding) r.consequences.push('non_coding_transcript_variant');
   }
+
+  // NMD_transcript_variant modifier (matches CLI predictor.rs)
+  if (tr.biotype === 'nonsense_mediated_decay') {
+    r.consequences.push('NMD_transcript_variant');
+  }
+
+  // Catch-all
   if (r.consequences.length === 0) r.consequences.push(tr.isCoding ? 'coding_transcript_variant' : 'non_coding_transcript_variant');
-  // Impact
-  const impactMap = { splice_acceptor_variant:'HIGH', splice_donor_variant:'HIGH', stop_gained:'HIGH', frameshift_variant:'HIGH', stop_lost:'HIGH', start_lost:'HIGH', missense_variant:'MODERATE', inframe_insertion:'MODERATE', inframe_deletion:'MODERATE', protein_altering_variant:'MODERATE', splice_region_variant:'LOW', synonymous_variant:'LOW' };
+
+  // HGVSc for intronic variants (c.N+offset or c.N-offset notation)
+  if (!inExon && intronicCdna && intronicOffset && tr.isCoding && tr.cdnaCodingStart) {
+    const tid = tr.id;
+    const rawCdsPos = intronicCdna - tr.cdnaCodingStart + 1;
+    const cdsPos = rawCdsPos <= 0 ? rawCdsPos - 1 : rawCdsPos; // skip position 0 for 5'UTR
+    const cdnaCodingEnd = tr.cdnaCodingEnd || intronicCdna;
+    if (cdsPos !== 0 && intronicCdna <= cdnaCodingEnd) {
+      const refB = (tr.strand === -1 ? complement(ref) : ref).toUpperCase();
+      const altB = (tr.strand === -1 ? complement(alt) : alt).toUpperCase();
+      r.hgvsc = `${tid}:c.${cdsPos}${intronicOffset}${refB}>${altB}`;
+    }
+  }
+
+  // Deduplicate consequences
+  r.consequences = [...new Set(r.consequences)];
+
+  // Impact classification (matches CLI impact ranks)
+  const impactMap = {
+    splice_acceptor_variant:'HIGH', splice_donor_variant:'HIGH', stop_gained:'HIGH',
+    frameshift_variant:'HIGH', stop_lost:'HIGH', start_lost:'HIGH',
+    transcript_ablation:'HIGH', transcript_amplification:'HIGH',
+    missense_variant:'MODERATE', inframe_insertion:'MODERATE', inframe_deletion:'MODERATE',
+    protein_altering_variant:'MODERATE',
+    splice_donor_5th_base_variant:'LOW', splice_donor_region_variant:'LOW',
+    splice_polypyrimidine_tract_variant:'LOW', splice_region_variant:'LOW',
+    synonymous_variant:'LOW', stop_retained_variant:'LOW',
+  };
   for (const c of r.consequences) { if (impactMap[c] && impactRank(impactMap[c]) < impactRank(r.impact)) r.impact = impactMap[c]; }
   return r;
 }
@@ -997,15 +1226,28 @@ function renderRaw() {
       impact: r.impact,
       gene: r.transcript?.gene?.symbol || null,
       transcript: r.transcript?.id || null,
+      biotype: r.transcript?.biotype || null,
+      hgvsc: r.hgvsc || null,
+      hgvsp: r.hgvsp || null,
+      hgvsg: r.hgvsg || null,
+      cdna_position: r.cdna || null,
+      cds_position: r.cds || null,
+      protein_position: r.protein || null,
+      amino_acids: r.aa || null,
+      codons: r.codons || null,
+      exon: r.exon || null,
+      intron: r.intron || null,
+      distance: r.dist || null,
     })), null, 2);
   } else if (fmt === 'tab') {
-    text = '#Location\tAllele\tConsequence\tIMPACT\tSYMBOL\tGene\tFeature\tBIOTYPE\n';
+    text = '#Location\tAllele\tConsequence\tIMPACT\tSYMBOL\tGene\tFeature\tBIOTYPE\tEXON\tINTRON\tHGVSc\tHGVSp\tcDNA\tCDS\tProtein\tAA\tCodons\tDISTANCE\n';
     for (const r of allResults) {
-      text += `${r.variant.chrom}:${r.variant.start}\t${r.allele}\t${r.consequences.join(',')}\t${r.impact}\t${r.transcript?.gene?.symbol||'-'}\t${r.transcript?.gene?.id||'-'}\t${r.transcript?.id||'-'}\t${r.transcript?.biotype||'-'}\n`;
+      text += `${r.variant.chrom}:${r.variant.start}\t${r.allele}\t${r.consequences.join(',')}\t${r.impact}\t${r.transcript?.gene?.symbol||'-'}\t${r.transcript?.gene?.id||'-'}\t${r.transcript?.id||'-'}\t${r.transcript?.biotype||'-'}\t${r.exon||'-'}\t${r.intron||'-'}\t${r.hgvsc||'-'}\t${r.hgvsp||'-'}\t${r.cdna||'-'}\t${r.cds||'-'}\t${r.protein||'-'}\t${r.aa||'-'}\t${r.codons||'-'}\t${r.dist||'-'}\n`;
     }
   } else {
     for (const r of allResults) {
-      text += `${r.variant.chrom}\t${r.variant.origPos}\t${r.variant.id||'.'}\t${r.variant.origRef}\t${r.variant.origAlt}\t${r.variant.qual}\t${r.variant.filter}\t${r.variant.info};CSQ=${r.allele}|${r.consequences.join('&')}|${r.impact}|${r.transcript?.gene?.symbol||''}|${r.transcript?.gene?.id||''}|Transcript|${r.transcript?.id||''}|${r.transcript?.biotype||''}\n`;
+      const esc = s => (s||'').replace(/,/g,'&').replace(/;/g,'%3B').replace(/=/g,'%3D').replace(/ /g,'_');
+      text += `${r.variant.chrom}\t${r.variant.origPos}\t${r.variant.id||'.'}\t${r.variant.origRef}\t${r.variant.origAlt}\t${r.variant.qual}\t${r.variant.filter}\t${r.variant.info};CSQ=${esc(r.allele)}|${r.consequences.join('&')}|${r.impact}|${esc(r.transcript?.gene?.symbol)}|${esc(r.transcript?.gene?.id)}|Transcript|${esc(r.transcript?.id)}|${esc(r.transcript?.biotype)}|${r.exon||''}|${r.intron||''}|${esc(r.hgvsc)}|${esc(r.hgvsp)}|${r.cdna||''}|${r.cds||''}|${r.protein||''}|${esc(r.aa)}|${esc(r.codons)}|${r.dist||''}\n`;
     }
   }
   document.getElementById('rawOutput').textContent = text;

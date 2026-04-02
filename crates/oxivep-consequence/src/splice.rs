@@ -14,7 +14,7 @@ use oxivep_genome::Transcript;
 /// Acceptor site (3' end of intron on forward strand):
 ///   intron  ...AG | XY...  exon
 ///   splice_acceptor: last 2 bases of intron (AG)
-///   splice_polypyrimidine: 3-15 bases from end of intron
+///   splice_polypyrimidine: 3-17 bases from end of intron
 ///   splice_region (exonic side): 1-3 bases into exon
 ///   splice_region (intronic side): 3-8 bases into intron
 
@@ -60,7 +60,11 @@ pub fn is_splice_donor_region(transcript: &Transcript, genomic_pos: u64) -> bool
     )
 }
 
-/// Check if position is in the splice polypyrimidine tract (3-15 bases from acceptor).
+/// Check if position is in the splice polypyrimidine tract (3-17 bases from acceptor).
+///
+/// VEP defines this as positions `intron_end-16` to `intron_end-2` for the forward strand
+/// (i.e., 3 to 17 bases from the 3' end of the intron), matching the Ensembl definition
+/// of acceptor -3 to acceptor -17.
 pub fn is_splice_polypyrimidine_tract(transcript: &Transcript, genomic_pos: u64) -> bool {
     for_each_intron_boundary_extended(
         transcript,
@@ -68,11 +72,11 @@ pub fn is_splice_polypyrimidine_tract(transcript: &Transcript, genomic_pos: u64)
             // Polypyrimidine tract is near the acceptor end
             if is_donor_at_start {
                 // Acceptor is at intron_end
-                let acc_region_start = if intron_end >= 14 { intron_end - 14 } else { intron_start };
+                let acc_region_start = if intron_end >= 16 { intron_end - 16 } else { intron_start };
                 genomic_pos >= acc_region_start && genomic_pos <= intron_end.saturating_sub(2)
             } else {
                 // Acceptor is at intron_start
-                let acc_region_end = (intron_start + 14).min(intron_end);
+                let acc_region_end = (intron_start + 16).min(intron_end);
                 genomic_pos >= intron_start + 2 && genomic_pos <= acc_region_end
             }
         },
@@ -89,40 +93,89 @@ pub fn is_splice_region(transcript: &Transcript, genomic_pos: u64) -> bool {
     }
 
     for i in 0..n - 1 {
-        let exon1 = sorted_exons[i];
-        let exon2 = sorted_exons[i + 1];
-
-        let intron_start = exon1.end + 1;
-        let intron_end = exon2.start - 1;
+        // Compute intron boundaries correctly for both strands
+        let (intron_start, intron_end) = match transcript.strand {
+            Strand::Forward => (sorted_exons[i].end + 1, sorted_exons[i + 1].start - 1),
+            Strand::Reverse => (sorted_exons[i + 1].end + 1, sorted_exons[i].start - 1),
+        };
 
         if intron_start > intron_end {
             continue;
         }
 
-        // Intronic splice region: 3-8 bases from each intron boundary
-        let donor_region_end = (intron_start + 7).min(intron_end);
-        if genomic_pos >= intron_start + 2 && genomic_pos <= donor_region_end {
-            return true;
-        }
-        let acc_region_start = if intron_end >= 7 {
-            intron_end - 7
-        } else {
-            intron_start
+        // Determine donor/acceptor ends based on strand
+        let (donor_end_genomic, acceptor_end_genomic) = match transcript.strand {
+            Strand::Forward => (intron_start, intron_end), // donor at start, acceptor at end
+            Strand::Reverse => (intron_end, intron_start), // donor at end, acceptor at start
         };
-        if genomic_pos >= acc_region_start && genomic_pos <= intron_end.saturating_sub(2) {
+
+        // Intronic splice region: 3-8 bases from donor boundary
+        let donor_dist = if genomic_pos >= intron_start && genomic_pos <= intron_end {
+            if transcript.strand == Strand::Forward {
+                genomic_pos - intron_start
+            } else {
+                intron_end - genomic_pos
+            }
+        } else {
+            u64::MAX
+        };
+        if donor_dist >= 2 && donor_dist <= 7 {
             return true;
         }
 
-        // Exonic splice region: 1-3 bases at exon boundary
-        // End of exon1 (3 bases from end, towards intron)
-        let exon1_region_start = if exon1.end >= 2 { exon1.end - 2 } else { exon1.start };
-        if genomic_pos >= exon1_region_start && genomic_pos <= exon1.end {
+        // Intronic splice region: 3-8 bases from acceptor boundary
+        let acceptor_dist = if genomic_pos >= intron_start && genomic_pos <= intron_end {
+            if transcript.strand == Strand::Forward {
+                intron_end - genomic_pos
+            } else {
+                genomic_pos - intron_start
+            }
+        } else {
+            u64::MAX
+        };
+        if acceptor_dist >= 2 && acceptor_dist <= 7 {
             return true;
         }
-        // Start of exon2 (3 bases from start, towards intron)
-        let exon2_region_end = (exon2.start + 2).min(exon2.end);
-        if genomic_pos >= exon2.start && genomic_pos <= exon2_region_end {
-            return true;
+
+        // Exonic splice region: 1-3 bases at exon boundaries adjacent to this intron
+        // Donor-side exon boundary
+        let donor_exon = if transcript.strand == Strand::Forward {
+            sorted_exons[i]
+        } else {
+            sorted_exons[i]  // for reverse, sorted[i] is the upstream exon in transcript
+        };
+        let acceptor_exon = if transcript.strand == Strand::Forward {
+            sorted_exons[i + 1]
+        } else {
+            sorted_exons[i + 1]
+        };
+
+        // Exonic: 3 bases at donor-side exon boundary (toward intron)
+        match transcript.strand {
+            Strand::Forward => {
+                // Donor exon end
+                let region_start = if donor_exon.end >= 2 { donor_exon.end - 2 } else { donor_exon.start };
+                if genomic_pos >= region_start && genomic_pos <= donor_exon.end {
+                    return true;
+                }
+                // Acceptor exon start
+                let region_end = (acceptor_exon.start + 2).min(acceptor_exon.end);
+                if genomic_pos >= acceptor_exon.start && genomic_pos <= region_end {
+                    return true;
+                }
+            }
+            Strand::Reverse => {
+                // Donor exon start (lower genomic coord for reverse strand donor)
+                let region_end = (donor_exon.start + 2).min(donor_exon.end);
+                if genomic_pos >= donor_exon.start && genomic_pos <= region_end {
+                    return true;
+                }
+                // Acceptor exon end (higher genomic coord for reverse strand acceptor)
+                let region_start = if acceptor_exon.end >= 2 { acceptor_exon.end - 2 } else { acceptor_exon.start };
+                if genomic_pos >= region_start && genomic_pos <= acceptor_exon.end {
+                    return true;
+                }
+            }
         }
     }
 
@@ -142,11 +195,14 @@ where
     }
 
     for i in 0..n - 1 {
-        let exon1 = sorted[i];
-        let exon2 = sorted[i + 1];
-
-        let intron_start = exon1.end + 1;
-        let intron_end = exon2.start - 1;
+        // Compute intron genomic coordinates based on strand
+        // For forward: intron is between sorted[i].end and sorted[i+1].start
+        // For reverse: sorted exons are in descending genomic order,
+        //   so intron is between sorted[i+1].end and sorted[i].start
+        let (intron_start, intron_end) = match transcript.strand {
+            Strand::Forward => (sorted[i].end + 1, sorted[i + 1].start - 1),
+            Strand::Reverse => (sorted[i + 1].end + 1, sorted[i].start - 1),
+        };
 
         if intron_start > intron_end {
             continue;
@@ -191,8 +247,10 @@ where
     }
 
     for i in 0..n - 1 {
-        let intron_start = sorted[i].end + 1;
-        let intron_end = sorted[i + 1].start - 1;
+        let (intron_start, intron_end) = match transcript.strand {
+            Strand::Forward => (sorted[i].end + 1, sorted[i + 1].start - 1),
+            Strand::Reverse => (sorted[i + 1].end + 1, sorted[i].start - 1),
+        };
 
         if intron_start > intron_end {
             continue;
@@ -227,6 +285,7 @@ mod tests {
         // Exon1: 1000-1200, Intron1: 1201-1999, Exon2: 2000-2300
         Transcript {
             stable_id: "ENST_TEST".into(),
+            version: None,
             gene: Gene {
                 stable_id: "ENSG_TEST".into(),
                 symbol: None,
@@ -254,9 +313,9 @@ mod tests {
             coding_region_end: Some(2300),
             spliced_seq: None, translateable_seq: None, peptide: None,
             canonical: false, mane_select: None, mane_plus_clinical: None,
-            tsl: None, appris: None, ccds: None, protein_id: None,
+            tsl: None, appris: None, ccds: None, protein_id: None, protein_version: None,
             swissprot: vec![], trembl: vec![], uniparc: vec![],
-            refseq_id: None, source: None, gencode_primary: false,
+            refseq_id: None, source: None, gencode_primary: false, flags: vec![], codon_table_start_phase: 0,
         }
     }
 
