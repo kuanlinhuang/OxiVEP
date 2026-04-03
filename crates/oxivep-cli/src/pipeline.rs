@@ -15,7 +15,7 @@ use oxivep_io::vcf::VcfParser;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, BufWriter, Write};
+use std::io::{self, BufRead, BufWriter, Write};
 use std::path::Path;
 
 const BATCH_SIZE: usize = 1024;
@@ -70,11 +70,24 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
 
         // Fall back to GFF3 parsing
         if let Some(ref gff3_path) = config.gff3 {
-            let gff_file = File::open(gff3_path)
-                .with_context(|| format!("Opening GFF3 file: {}", gff3_path))?;
-            let trs = parse_gff3(gff_file)?;
-            eprintln!("Loaded {} transcripts from {}", trs.len(), gff3_path);
-            trs
+            let gff_path = Path::new(gff3_path);
+            let tbi_path = format!("{}.tbi", gff3_path);
+
+            // Use indexed loading if .gff3.gz + .tbi available
+            if gff3_path.ends_with(".gz") && Path::new(&tbi_path).exists() {
+                // Pre-scan VCF to collect regions
+                let regions = prescan_vcf_regions(&config.input, config.distance)?;
+                eprintln!("Pre-scanned {} variant regions from {}", regions.len(), config.input);
+                let trs = oxivep_cache::gff::parse_gff3_indexed(gff_path, &regions)?;
+                eprintln!("Loaded {} transcripts from indexed {}", trs.len(), gff3_path);
+                trs
+            } else {
+                let gff_file = File::open(gff3_path)
+                    .with_context(|| format!("Opening GFF3 file: {}", gff3_path))?;
+                let trs = parse_gff3(gff_file)?;
+                eprintln!("Loaded {} transcripts from {}", trs.len(), gff3_path);
+                trs
+            }
         } else {
             eprintln!("Warning: No GFF3 file provided. Only intergenic variants will be annotated.");
             Vec::new()
@@ -1204,4 +1217,30 @@ pub fn run_cache_build(gff3_path: &str, fasta_path: Option<&str>, output_path: &
     oxivep_cache::transcript_cache::save_cache(&transcripts, Path::new(output_path))?;
     eprintln!("Saved transcript cache to {}", output_path);
     Ok(())
+}
+
+/// Quick VCF pre-scan to collect variant regions for indexed GFF3 loading.
+/// Returns merged (chrom, start, end) regions expanded by the given distance.
+fn prescan_vcf_regions(vcf_path: &str, distance: u64) -> Result<Vec<(String, u64, u64)>> {
+    let file = File::open(vcf_path)
+        .with_context(|| format!("Pre-scanning VCF: {}", vcf_path))?;
+    let reader = io::BufReader::new(file);
+
+    let mut regions: HashMap<String, (u64, u64)> = HashMap::new();
+
+    for line in reader.lines() {
+        let line = line?;
+        if line.starts_with('#') || line.is_empty() { continue; }
+        let mut fields = line.split('\t');
+        let chrom = match fields.next() { Some(c) => c.to_string(), None => continue };
+        let pos: u64 = match fields.next().and_then(|p| p.parse().ok()) { Some(p) => p, None => continue };
+        let start = pos.saturating_sub(distance);
+        let end = pos + distance;
+
+        let entry = regions.entry(chrom).or_insert((start, end));
+        entry.0 = entry.0.min(start);
+        entry.1 = entry.1.max(end);
+    }
+
+    Ok(regions.into_iter().map(|(chrom, (s, e))| (chrom, s, e)).collect())
 }

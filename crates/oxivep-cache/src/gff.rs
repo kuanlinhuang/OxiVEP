@@ -3,6 +3,7 @@ use oxivep_core::Strand;
 use oxivep_genome::{Exon, Gene, Transcript, Translation};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
+use std::path::Path;
 use std::sync::Arc;
 
 /// Parse a GFF3 file into Transcript models.
@@ -10,14 +11,113 @@ use std::sync::Arc;
 /// Builds gene -> transcript -> exon/CDS hierarchy from GFF3 features.
 pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
     let buf = BufReader::new(reader);
+    parse_gff3_lines(buf.lines().map(|l| l.unwrap_or_default()))
+}
+
+/// Parse a tabix-indexed GFF3 file, loading only transcripts overlapping given regions.
+///
+/// Regions are specified as (chrom, start, end) tuples. This loads gene/transcript/exon/CDS
+/// features from the indexed file for each region, then assembles transcripts.
+pub fn parse_gff3_indexed(
+    gff3_gz_path: &Path,
+    regions: &[(String, u64, u64)],
+) -> Result<Vec<Transcript>> {
+    use noodles_bgzf as bgzf;
+    use noodles_core::Position;
+    use noodles_core::region::Interval;
+    use noodles_csi::binning_index::BinningIndex;
+    use noodles_tabix as tabix;
+    use std::io::Seek;
+
+    let tbi_path = format!("{}.tbi", gff3_gz_path.display());
+    let index = tabix::fs::read(&tbi_path)
+        .map_err(|e| anyhow::anyhow!("Reading tabix index {}: {}", tbi_path, e))?;
+
+    let header = index.header()
+        .ok_or_else(|| anyhow::anyhow!("Missing tabix header"))?;
+    let ref_names: Vec<String> = header.reference_sequence_names()
+        .iter()
+        .map(|n| n.to_string())
+        .collect();
+
+    let mut all_lines: Vec<String> = Vec::new();
+    let mut seen_lines: std::collections::HashSet<u64> = std::collections::HashSet::new();
+
+    for (chrom, start, end) in regions {
+        // Find reference ID, trying with/without "chr" prefix
+        let ref_id = ref_names.iter().position(|n| n == chrom)
+            .or_else(|| {
+                if chrom.starts_with("chr") {
+                    ref_names.iter().position(|n| n == &chrom[3..])
+                } else {
+                    let with_chr = format!("chr{}", chrom);
+                    ref_names.iter().position(|n| *n == with_chr)
+                }
+            });
+
+        let ref_id = match ref_id {
+            Some(id) => id,
+            None => continue,
+        };
+
+        let pos_start = Position::try_from((*start).max(1) as usize)
+            .unwrap_or(Position::MIN);
+        let pos_end = Position::try_from(*end as usize)
+            .unwrap_or(Position::MIN);
+        let query_interval: Interval = (pos_start..=pos_end).into();
+
+        let chunks = match index.query(ref_id, query_interval) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        let file = std::fs::File::open(gff3_gz_path)?;
+        let mut reader = bgzf::io::Reader::new(file);
+
+        for chunk in &chunks {
+            reader.seek(chunk.start())?;
+            let mut line = String::new();
+
+            loop {
+                line.clear();
+                let bytes = reader.read_line(&mut line)?;
+                if bytes == 0 { break; }
+
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    if reader.virtual_position() >= chunk.end() { break; }
+                    continue;
+                }
+
+                // Deduplicate lines by hashing (regions may overlap in tabix chunks)
+                let hash = {
+                    use std::hash::{Hash, Hasher};
+                    let mut h = std::collections::hash_map::DefaultHasher::new();
+                    trimmed.hash(&mut h);
+                    h.finish()
+                };
+                if seen_lines.insert(hash) {
+                    all_lines.push(trimmed.to_string());
+                }
+
+                if reader.virtual_position() >= chunk.end() { break; }
+            }
+        }
+    }
+
+    parse_gff3_lines(all_lines.into_iter())
+}
+
+/// Core GFF3 parsing logic: takes an iterator of lines and builds Transcript models.
+fn parse_gff3_lines(lines: impl Iterator<Item = String>) -> Result<Vec<Transcript>> {
     let mut genes: HashMap<String, GffGene> = HashMap::new();
     let mut transcripts: HashMap<String, GffTranscript> = HashMap::new();
     let mut exons: Vec<GffExon> = Vec::new();
     let mut cds_features: Vec<GffCds> = Vec::new();
 
-    for line in buf.lines() {
-        let line = line?;
-        let line = line.trim();
+    for line in lines {
+        let line = line.trim().to_string();
+        let line = line.as_str();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
