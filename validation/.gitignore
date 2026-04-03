@@ -1,0 +1,12 @@
+# Generated outputs (recreated by run_validation.sh)
+results/
+
+# Large reference files (downloaded by run_validation.sh)
+mouse/*.fa
+mouse/*.fa.fai
+mouse/*.fa.gz
+mouse/mouse_chr19.gff3
+mouse/Mus_musculus.*.gff3.gz
+
+# VEP warning files
+*_warnings.txt
