@@ -30,6 +30,7 @@ pub struct AnnotateConfig {
     pub hgvs: bool,
     pub distance: u64,
     pub cache_dir: Option<String>,
+    pub transcript_cache: Option<String>,
 }
 
 pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
@@ -40,16 +41,44 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
             .unwrap_or_else(|| p.clone())
     });
 
-    // Load transcript models from GFF3
-    let mut transcripts = if let Some(ref gff3_path) = config.gff3 {
-        let gff_file = File::open(gff3_path)
-            .with_context(|| format!("Opening GFF3 file: {}", gff3_path))?;
-        let trs = parse_gff3(gff_file)?;
-        eprintln!("Loaded {} transcripts from {}", trs.len(), gff3_path);
-        trs
-    } else {
-        eprintln!("Warning: No GFF3 file provided. Only intergenic variants will be annotated.");
-        Vec::new()
+    // Load transcript models: try binary cache first, fall back to GFF3
+    let cache_path = config.transcript_cache.as_ref().map(|p| Path::new(p).to_path_buf())
+        .or_else(|| config.gff3.as_ref().map(|p| oxivep_cache::transcript_cache::default_cache_path(Path::new(p))));
+
+    let mut transcripts = 'load: {
+        // Try loading from binary cache
+        if let Some(ref cp) = cache_path {
+            if cp.exists() {
+                let is_fresh = config.gff3.as_ref()
+                    .map(|gff| oxivep_cache::transcript_cache::cache_is_fresh(cp, Path::new(gff)))
+                    .unwrap_or(true);
+                if is_fresh {
+                    match oxivep_cache::transcript_cache::load_cache(cp) {
+                        Ok(trs) => {
+                            eprintln!("Loaded {} transcripts from cache {}", trs.len(), cp.display());
+                            break 'load trs;
+                        }
+                        Err(e) => {
+                            eprintln!("Warning: cache load failed ({}), falling back to GFF3", e);
+                        }
+                    }
+                } else {
+                    eprintln!("Cache is stale, rebuilding from GFF3");
+                }
+            }
+        }
+
+        // Fall back to GFF3 parsing
+        if let Some(ref gff3_path) = config.gff3 {
+            let gff_file = File::open(gff3_path)
+                .with_context(|| format!("Opening GFF3 file: {}", gff3_path))?;
+            let trs = parse_gff3(gff_file)?;
+            eprintln!("Loaded {} transcripts from {}", trs.len(), gff3_path);
+            trs
+        } else {
+            eprintln!("Warning: No GFF3 file provided. Only intergenic variants will be annotated.");
+            Vec::new()
+        }
     };
 
     // Load FASTA reference
@@ -63,22 +92,39 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
         None
     };
 
-    // Build sequences for coding transcripts from FASTA
-    if let Some(ref sp) = seq_provider {
-        let mut built = 0usize;
-        for tr in &mut transcripts {
-            if tr.is_coding() {
-                if let Err(e) = tr.build_sequences(|chrom, start, end| {
-                    sp.fetch_sequence(chrom, start, end)
-                        .map_err(|e| e.to_string())
-                }) {
-                    eprintln!("Warning: could not build sequences for {}: {}", tr.stable_id, e);
+    // Build sequences for coding transcripts from FASTA (skip if loaded from cache with sequences)
+    let needs_seq_build = transcripts.iter().any(|t| t.is_coding() && t.spliced_seq.is_none());
+    if needs_seq_build {
+        if let Some(ref sp) = seq_provider {
+            let mut built = 0usize;
+            for tr in &mut transcripts {
+                if tr.is_coding() && tr.spliced_seq.is_none() {
+                    if let Err(e) = tr.build_sequences(|chrom, start, end| {
+                        sp.fetch_sequence(chrom, start, end)
+                            .map_err(|e| e.to_string())
+                    }) {
+                        eprintln!("Warning: could not build sequences for {}: {}", tr.stable_id, e);
+                    } else {
+                        built += 1;
+                    }
+                }
+            }
+            eprintln!("Built sequences for {} coding transcripts", built);
+        }
+    }
+
+    // Save cache if we parsed from GFF3 and have a cache path
+    if let Some(ref cp) = cache_path {
+        if !cp.exists() || !config.transcript_cache.is_some() {
+            // Auto-save cache after GFF3 parse + sequence build
+            if config.gff3.is_some() {
+                if let Err(e) = oxivep_cache::transcript_cache::save_cache(&transcripts, cp) {
+                    eprintln!("Warning: could not save cache: {}", e);
                 } else {
-                    built += 1;
+                    eprintln!("Saved transcript cache to {}", cp.display());
                 }
             }
         }
-        eprintln!("Built sequences for {} coding transcripts", built);
     }
 
     let transcript_provider = IndexedTranscriptProvider::new(transcripts);
@@ -1124,3 +1170,38 @@ fn complement_allele(allele: &Allele) -> Allele {
 }
 
 use serde_json;
+
+/// Build a binary transcript cache from GFF3 + optional FASTA.
+pub fn run_cache_build(gff3_path: &str, fasta_path: Option<&str>, output_path: &str) -> Result<()> {
+    let gff_file = File::open(gff3_path)
+        .with_context(|| format!("Opening GFF3 file: {}", gff3_path))?;
+    let mut transcripts = parse_gff3(gff_file)?;
+    eprintln!("Loaded {} transcripts from {}", transcripts.len(), gff3_path);
+
+    if let Some(fasta) = fasta_path {
+        let fasta_file = File::open(fasta)
+            .with_context(|| format!("Opening FASTA file: {}", fasta))?;
+        let reader = FastaReader::from_reader(fasta_file)?;
+        let sp = FastaSequenceProvider::new(reader);
+        eprintln!("Loaded reference FASTA from {}", fasta);
+
+        let mut built = 0usize;
+        for tr in &mut transcripts {
+            if tr.is_coding() {
+                if let Err(e) = tr.build_sequences(|chrom, start, end| {
+                    sp.fetch_sequence(chrom, start, end)
+                        .map_err(|e| e.to_string())
+                }) {
+                    eprintln!("Warning: could not build sequences for {}: {}", tr.stable_id, e);
+                } else {
+                    built += 1;
+                }
+            }
+        }
+        eprintln!("Built sequences for {} coding transcripts", built);
+    }
+
+    oxivep_cache::transcript_cache::save_cache(&transcripts, Path::new(output_path))?;
+    eprintln!("Saved transcript cache to {}", output_path);
+    Ok(())
+}

@@ -68,6 +68,10 @@ enum Commands {
         /// Path to VEP cache directory for known variant annotation
         #[arg(long)]
         cache_dir: Option<String>,
+
+        /// Path to binary transcript cache file (auto-generated if not specified)
+        #[arg(long)]
+        transcript_cache: Option<String>,
     },
 
     /// Launch the web interface for interactive variant annotation
@@ -83,6 +87,21 @@ enum Commands {
         /// Path to FASTA reference file
         #[arg(long)]
         fasta: Option<String>,
+    },
+
+    /// Build a binary transcript cache for fast startup
+    Cache {
+        /// GFF3 annotation file
+        #[arg(long)]
+        gff3: String,
+
+        /// Path to FASTA reference file (for pre-building sequences)
+        #[arg(long)]
+        fasta: Option<String>,
+
+        /// Output cache file path
+        #[arg(short, long)]
+        output: String,
     },
 
     /// Filter annotated VEP output
@@ -120,6 +139,7 @@ fn main() -> Result<()> {
             canonical: _,
             distance,
             cache_dir,
+            transcript_cache,
         } => {
             pipeline::run_annotate(pipeline::AnnotateConfig {
                 input,
@@ -131,7 +151,11 @@ fn main() -> Result<()> {
                 hgvs,
                 distance,
                 cache_dir,
+                transcript_cache,
             })?;
+        }
+        Commands::Cache { gff3, fasta, output } => {
+            pipeline::run_cache_build(&gff3, fasta.as_deref(), &output)?;
         }
         Commands::Web { port, gff3, fasta } => {
             webserver::run_server(port, gff3, fasta)?;

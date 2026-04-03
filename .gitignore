@@ -10,3 +10,5 @@ benchmarks/human_50k.vcf
 
 # Test data (large reference files)
 test_data/
+echtvar/
+tests/

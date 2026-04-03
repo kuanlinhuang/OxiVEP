@@ -17,3 +17,8 @@ noodles-bgzf = { workspace = true }
 noodles-core = { workspace = true }
 noodles-tabix = { workspace = true }
 noodles-csi = { workspace = true }
+bincode = { workspace = true }
+memmap2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
