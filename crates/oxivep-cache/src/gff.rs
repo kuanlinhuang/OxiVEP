@@ -274,7 +274,7 @@ pub fn parse_gff3<R: Read>(reader: R) -> Result<Vec<Transcript>> {
             .map(|g| Gene {
                 stable_id: Arc::from(g.id.as_str()),
                 symbol: g.symbol.as_deref().map(Arc::from),
-                symbol_source: Some("GFF3".to_string()),
+                symbol_source: None,
                 hgnc_id: None,
                 biotype: Arc::from(g.biotype.as_str()),
                 chromosome: Arc::from(g.chromosome.as_str()),

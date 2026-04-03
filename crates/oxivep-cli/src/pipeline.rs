@@ -33,6 +33,13 @@ pub struct AnnotateConfig {
 }
 
 pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
+    // Extract the GFF3 source name (filename) for the SOURCE field
+    let gff3_source: Option<String> = config.gff3.as_ref().map(|p| {
+        Path::new(p).file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| p.clone())
+    });
+
     // Load transcript models from GFF3
     let mut transcripts = if let Some(ref gff3_path) = config.gff3 {
         let gff_file = File::open(gff3_path)
@@ -266,6 +273,7 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
                             hgvsc: None,
                             hgvsp: None,
                             hgvsg: None,
+                            hgvs_offset: None,
                             existing_variation: matched_by_allele
                                 .get(&ac.allele.to_string())
                                 .map(|matches| matches.iter().map(|m| m.name.clone()).collect())
@@ -685,7 +693,7 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
                         allele_annotations,
                         canonical: tc.canonical,
                         strand: tc.strand,
-                        source: None,
+                        source: gff3_source.clone(),
                         protein_id: transcript.and_then(|t| t.protein_id.clone()),
                         mane_select: transcript.and_then(|t| t.mane_select.clone()),
                         mane_plus_clinical: transcript.and_then(|t| t.mane_plus_clinical.clone()),
@@ -1035,6 +1043,7 @@ fn annotate_intergenic(vf: &mut VariationFeature) {
                 hgvsc: None,
                 hgvsp: None,
                 hgvsg: None,
+                hgvs_offset: None,
                 existing_variation: vec![],
                 sift: None,
                 polyphen: None,

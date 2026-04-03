@@ -1245,9 +1245,17 @@ function renderRaw() {
       text += `${r.variant.chrom}:${r.variant.start}\t${r.allele}\t${r.consequences.join(',')}\t${r.impact}\t${r.transcript?.gene?.symbol||'-'}\t${r.transcript?.gene?.id||'-'}\t${r.transcript?.id||'-'}\t${r.transcript?.biotype||'-'}\t${r.exon||'-'}\t${r.intron||'-'}\t${r.hgvsc||'-'}\t${r.hgvsp||'-'}\t${r.cdna||'-'}\t${r.cds||'-'}\t${r.protein||'-'}\t${r.aa||'-'}\t${r.codons||'-'}\t${r.dist||'-'}\n`;
     }
   } else {
+    const CSQ_FORMAT = 'Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|REF_ALLELE|UPLOADED_ALLELE|DISTANCE|STRAND|FLAGS|CANONICAL|SYMBOL_SOURCE|HGNC_ID|MANE|MANE_SELECT|MANE_PLUS_CLINICAL|TSL|APPRIS|CCDS|ENSP|SOURCE|HGVS_OFFSET|SIFT|PolyPhen|AF|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|HIGH_INF_POS|MOTIF_SCORE_CHANGE|TRANSCRIPTION_FACTORS';
+    text += '##fileformat=VCFv4.2\n';
+    text += `##INFO=<ID=CSQ,Number=.,Type=String,Description="Consequence annotations from OxiVEP. Format: ${CSQ_FORMAT}">\n`;
+    text += '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n';
     for (const r of allResults) {
       const esc = s => (s||'').replace(/,/g,'&').replace(/;/g,'%3B').replace(/=/g,'%3D').replace(/ /g,'_');
-      text += `${r.variant.chrom}\t${r.variant.origPos}\t${r.variant.id||'.'}\t${r.variant.origRef}\t${r.variant.origAlt}\t${r.variant.qual}\t${r.variant.filter}\t${r.variant.info};CSQ=${esc(r.allele)}|${r.consequences.join('&')}|${r.impact}|${esc(r.transcript?.gene?.symbol)}|${esc(r.transcript?.gene?.id)}|Transcript|${esc(r.transcript?.id)}|${esc(r.transcript?.biotype)}|${r.exon||''}|${r.intron||''}|${esc(r.hgvsc)}|${esc(r.hgvsp)}|${r.cdna||''}|${r.cds||''}|${r.protein||''}|${esc(r.aa)}|${esc(r.codons)}|${r.dist||''}\n`;
+      const tr = r.transcript;
+      const canon = tr?.canonical ? 'YES' : '';
+      const ensp = tr?.proteinId ? esc(tr.proteinId) : '';
+      const strand = tr?.strand === 1 ? '1' : tr?.strand === -1 ? '-1' : '';
+      text += `${r.variant.chrom}\t${r.variant.origPos}\t${r.variant.id||'.'}\t${r.variant.origRef}\t${r.variant.origAlt}\t${r.variant.qual}\t${r.variant.filter}\tCSQ=${esc(r.allele)}|${r.consequences.join('&')}|${r.impact}|${esc(tr?.gene?.symbol)}|${esc(tr?.gene?.id)}|Transcript|${esc(tr?.id)}|${esc(tr?.biotype)}|${r.exon||''}|${r.intron||''}|${esc(r.hgvsc)}|${esc(r.hgvsp)}|${r.cdna||''}|${r.cds||''}|${r.protein||''}|${esc(r.aa)}|${esc(r.codons)}||${esc(r.variant?.origRef)}|${esc(r.variant?.origRef+'/'+r.variant?.origAlt)}|${r.dist||''}|${strand}||${canon}||||||||${ensp}|||||||||||||||\n`;
     }
   }
   document.getElementById('rawOutput').textContent = text;

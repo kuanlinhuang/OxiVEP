@@ -80,6 +80,8 @@ pub struct AlleleAnnotation {
     pub hgvsc: Option<String>,
     pub hgvsp: Option<String>,
     pub hgvsg: Option<String>,
+    /// HGVS offset: number of bases shifted during 3' normalization.
+    pub hgvs_offset: Option<i64>,
     pub existing_variation: Vec<String>,
     pub sift: Option<String>,
     pub polyphen: Option<String>,

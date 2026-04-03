@@ -473,6 +473,7 @@ fn mock_vf_missense() -> VariationFeature {
                 hgvsc: None,
                 hgvsp: None,
                 hgvsg: None,
+                hgvs_offset: None,
                 existing_variation: vec![],
                 sift: Some("tolerated_low_confidence(0.06)".into()),
                 polyphen: Some("benign(0)".into()),
@@ -523,13 +524,15 @@ fn test_csq_missense_field_values() {
     assert_eq!(fields[18], "A", "REF_ALLELE");
     assert_eq!(fields[19], "A/C", "UPLOADED_ALLELE");
     assert_eq!(fields[21], "1", "STRAND");
-    assert_eq!(fields[23], "HGNC", "SYMBOL_SOURCE");
-    assert_eq!(fields[24], "HGNC:14825", "HGNC_ID");
-    assert_eq!(fields[25], "MANE_Select", "MANE");
-    assert_eq!(fields[26], "NM_001005484.2", "MANE_SELECT");
-    assert_eq!(fields[29], "P1", "APPRIS");
-    assert_eq!(fields[30], "tolerated_low_confidence(0.06)", "SIFT");
-    assert_eq!(fields[31], "benign(0)", "PolyPhen");
+    // CANONICAL is now at index 23
+    assert_eq!(fields[24], "HGNC", "SYMBOL_SOURCE");
+    assert_eq!(fields[25], "HGNC:14825", "HGNC_ID");
+    assert_eq!(fields[26], "MANE_Select", "MANE");
+    assert_eq!(fields[27], "NM_001005484.2", "MANE_SELECT");
+    assert_eq!(fields[30], "P1", "APPRIS");
+    // CCDS at 31, ENSP at 32, SOURCE at 33, HGVS_OFFSET at 34
+    assert_eq!(fields[35], "tolerated_low_confidence(0.06)", "SIFT");
+    assert_eq!(fields[36], "benign(0)", "PolyPhen");
 }
 
 #[test]
@@ -565,6 +568,7 @@ fn test_csq_frameshift_codon_format() {
                 hgvsc: None,
                 hgvsp: None,
                 hgvsg: None,
+                hgvs_offset: None,
                 existing_variation: vec![],
                 sift: None,
                 polyphen: None,
@@ -616,18 +620,23 @@ fn test_csq_header_includes_new_fields() {
     assert!(header.contains("TSL"), "Header should include TSL");
     assert!(header.contains("APPRIS"), "Header should include APPRIS");
     assert!(header.contains("TRANSCRIPTION_FACTORS"), "Header should end with TRANSCRIPTION_FACTORS");
+    assert!(header.contains("CANONICAL"), "Header should include CANONICAL");
+    assert!(header.contains("CCDS"), "Header should include CCDS");
+    assert!(header.contains("ENSP"), "Header should include ENSP");
+    assert!(header.contains("SOURCE"), "Header should include SOURCE");
+    assert!(header.contains("HGVS_OFFSET"), "Header should include HGVS_OFFSET");
 }
 
 #[test]
 fn test_csq_field_count_matches_vep() {
-    // VEP output has exactly 42 fields
-    assert_eq!(output::DEFAULT_CSQ_FIELDS.len(), 42, "DEFAULT_CSQ_FIELDS should have 42 fields");
+    // Extended field set includes all VEP fields plus CANONICAL, CCDS, ENSP, SOURCE, HGVS_OFFSET
+    assert_eq!(output::DEFAULT_CSQ_FIELDS.len(), 47, "DEFAULT_CSQ_FIELDS should have 47 fields");
 
-    // Verify formatting produces 42 pipe-delimited values
+    // Verify formatting produces 47 pipe-delimited values
     let vf = mock_vf_missense();
     let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
     let field_count = csq.split('|').count();
-    assert_eq!(field_count, 42, "CSQ output should have 42 pipe-delimited fields");
+    assert_eq!(field_count, 47, "CSQ output should have 47 pipe-delimited fields");
 }
 
 #[test]
@@ -640,7 +649,7 @@ fn test_csq_missense_full_42_field_match() {
     let csq = output::format_csq(&vf, output::DEFAULT_CSQ_FIELDS);
     let fields: Vec<&str> = csq.split('|').collect();
 
-    // VEP expected values (all 42 fields)
+    // VEP expected values (all 47 fields)
     let expected: Vec<&str> = vec![
         "C",                                  // 0:  Allele
         "missense_variant",                   // 1:  Consequence
@@ -665,25 +674,30 @@ fn test_csq_missense_full_42_field_match() {
         "",                                   // 20: DISTANCE
         "1",                                  // 21: STRAND
         "",                                   // 22: FLAGS
-        "HGNC",                               // 23: SYMBOL_SOURCE
-        "HGNC:14825",                         // 24: HGNC_ID
-        "MANE_Select",                        // 25: MANE
-        "NM_001005484.2",                     // 26: MANE_SELECT
-        "",                                   // 27: MANE_PLUS_CLINICAL
-        "",                                   // 28: TSL
-        "P1",                                 // 29: APPRIS
-        "tolerated_low_confidence(0.06)",     // 30: SIFT
-        "benign(0)",                          // 31: PolyPhen
-        "",                                   // 32: AF
-        "",                                   // 33: CLIN_SIG
-        "",                                   // 34: SOMATIC
-        "",                                   // 35: PHENO
-        "",                                   // 36: PUBMED
-        "",                                   // 37: MOTIF_NAME
-        "",                                   // 38: MOTIF_POS
-        "",                                   // 39: HIGH_INF_POS
-        "",                                   // 40: MOTIF_SCORE_CHANGE
-        "",                                   // 41: TRANSCRIPTION_FACTORS
+        "",                                   // 23: CANONICAL
+        "HGNC",                               // 24: SYMBOL_SOURCE
+        "HGNC:14825",                         // 25: HGNC_ID
+        "MANE_Select",                        // 26: MANE
+        "NM_001005484.2",                     // 27: MANE_SELECT
+        "",                                   // 28: MANE_PLUS_CLINICAL
+        "",                                   // 29: TSL
+        "P1",                                 // 30: APPRIS
+        "",                                   // 31: CCDS
+        "",                                   // 32: ENSP
+        "",                                   // 33: SOURCE
+        "",                                   // 34: HGVS_OFFSET
+        "tolerated_low_confidence(0.06)",     // 35: SIFT
+        "benign(0)",                          // 36: PolyPhen
+        "",                                   // 37: AF
+        "",                                   // 38: CLIN_SIG
+        "",                                   // 39: SOMATIC
+        "",                                   // 40: PHENO
+        "",                                   // 41: PUBMED
+        "",                                   // 42: MOTIF_NAME
+        "",                                   // 43: MOTIF_POS
+        "",                                   // 44: HIGH_INF_POS
+        "",                                   // 45: MOTIF_SCORE_CHANGE
+        "",                                   // 46: TRANSCRIPTION_FACTORS
     ];
 
     assert_eq!(fields.len(), expected.len(),
@@ -728,6 +742,7 @@ fn test_csq_frameshift_full_42_field_match() {
                 hgvsc: None,
                 hgvsp: None,
                 hgvsg: None,
+                hgvs_offset: None,
                 existing_variation: vec![],
                 sift: None,
                 polyphen: None,
@@ -780,25 +795,30 @@ fn test_csq_frameshift_full_42_field_match() {
         "",                     // 20: DISTANCE
         "1",                    // 21: STRAND
         "cds_end_NF",           // 22: FLAGS
-        "HGNC",                 // 23: SYMBOL_SOURCE
-        "HGNC:1939",            // 24: HGNC_ID
-        "",                     // 25: MANE
-        "",                     // 26: MANE_SELECT
-        "",                     // 27: MANE_PLUS_CLINICAL
-        "4",                    // 28: TSL
-        "",                     // 29: APPRIS
-        "",                     // 30: SIFT
-        "",                     // 31: PolyPhen
-        "",                     // 32: AF
-        "",                     // 33: CLIN_SIG
-        "",                     // 34: SOMATIC
-        "",                     // 35: PHENO
-        "",                     // 36: PUBMED
-        "",                     // 37: MOTIF_NAME
-        "",                     // 38: MOTIF_POS
-        "",                     // 39: HIGH_INF_POS
-        "",                     // 40: MOTIF_SCORE_CHANGE
-        "",                     // 41: TRANSCRIPTION_FACTORS
+        "",                     // 23: CANONICAL
+        "HGNC",                 // 24: SYMBOL_SOURCE
+        "HGNC:1939",            // 25: HGNC_ID
+        "",                     // 26: MANE
+        "",                     // 27: MANE_SELECT
+        "",                     // 28: MANE_PLUS_CLINICAL
+        "4",                    // 29: TSL
+        "",                     // 30: APPRIS
+        "",                     // 31: CCDS
+        "",                     // 32: ENSP
+        "",                     // 33: SOURCE
+        "",                     // 34: HGVS_OFFSET
+        "",                     // 35: SIFT
+        "",                     // 36: PolyPhen
+        "",                     // 37: AF
+        "",                     // 38: CLIN_SIG
+        "",                     // 39: SOMATIC
+        "",                     // 40: PHENO
+        "",                     // 41: PUBMED
+        "",                     // 42: MOTIF_NAME
+        "",                     // 43: MOTIF_POS
+        "",                     // 44: HIGH_INF_POS
+        "",                     // 45: MOTIF_SCORE_CHANGE
+        "",                     // 46: TRANSCRIPTION_FACTORS
     ];
 
     assert_eq!(fields.len(), expected.len(),
@@ -844,6 +864,7 @@ fn test_csq_downstream_variant_match() {
                 hgvsc: None,
                 hgvsp: None,
                 hgvsg: None,
+                hgvs_offset: None,
                 existing_variation: vec![],
                 sift: None,
                 polyphen: None,
@@ -871,8 +892,8 @@ fn test_csq_downstream_variant_match() {
 
     // VEP expected:
     // C|downstream_gene_variant|MODIFIER|OR4G11P|ENSG00000240361|Transcript|ENST00000492842.2|
-    // transcribed_unprocessed_pseudogene|||||||||||A|A/C|1681|1||HGNC|HGNC:31276|||||||||||||||||
-    assert_eq!(fields.len(), 42);
+    // transcribed_unprocessed_pseudogene|||||||||||A|A/C|1681|1|||HGNC|HGNC:31276|...
+    assert_eq!(fields.len(), 47);
     assert_eq!(fields[0], "C");
     assert_eq!(fields[1], "downstream_gene_variant");
     assert_eq!(fields[2], "MODIFIER");
@@ -882,8 +903,8 @@ fn test_csq_downstream_variant_match() {
     assert_eq!(fields[19], "A/C");
     assert_eq!(fields[20], "1681");
     assert_eq!(fields[21], "1");
-    assert_eq!(fields[23], "HGNC");
-    assert_eq!(fields[24], "HGNC:31276");
+    assert_eq!(fields[24], "HGNC");
+    assert_eq!(fields[25], "HGNC:31276");
     // All annotation fields should be empty for downstream variant
     assert_eq!(fields[8], "");   // EXON
     assert_eq!(fields[12], "");  // cDNA_position
@@ -925,6 +946,7 @@ fn test_csq_intron_variant_match() {
                 hgvsc: None,
                 hgvsp: None,
                 hgvsg: None,
+                hgvs_offset: None,
                 existing_variation: vec![],
                 sift: None,
                 polyphen: None,
@@ -952,8 +974,8 @@ fn test_csq_intron_variant_match() {
 
     // VEP expected:
     // T|intron_variant|MODIFIER|ACP1|ENSG00000143727|Transcript|ENST00000272065.10|
-    // protein_coding||1/5|||||||||C|C/T||1||HGNC|HGNC:122|MANE_Select|NM_004300.4||1|P3||||||||||||
-    assert_eq!(fields.len(), 42);
+    // protein_coding||1/5|||||||||C|C/T||1|||HGNC|HGNC:122|MANE_Select|NM_004300.4||1|P3|...
+    assert_eq!(fields.len(), 47);
     assert_eq!(fields[0], "T");
     assert_eq!(fields[1], "intron_variant");
     assert_eq!(fields[2], "MODIFIER");
@@ -964,10 +986,10 @@ fn test_csq_intron_variant_match() {
     assert_eq!(fields[18], "C");
     assert_eq!(fields[19], "C/T");
     assert_eq!(fields[21], "1");
-    assert_eq!(fields[23], "HGNC");
-    assert_eq!(fields[24], "HGNC:122");
-    assert_eq!(fields[25], "MANE_Select");
-    assert_eq!(fields[26], "NM_004300.4");
-    assert_eq!(fields[28], "1");   // TSL
-    assert_eq!(fields[29], "P3");  // APPRIS
+    assert_eq!(fields[24], "HGNC");     // SYMBOL_SOURCE (shifted +1)
+    assert_eq!(fields[25], "HGNC:122");
+    assert_eq!(fields[26], "MANE_Select");
+    assert_eq!(fields[27], "NM_004300.4");
+    assert_eq!(fields[29], "1");   // TSL (shifted +1)
+    assert_eq!(fields[30], "P3");  // APPRIS (shifted +1)
 }

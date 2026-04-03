@@ -162,6 +162,10 @@ fn format_csq_entry(
                 pubs.join("&")
             }
             "SOURCE" => tv.source.clone().unwrap_or_default(),
+            "HGVS_OFFSET" => aa
+                .hgvs_offset
+                .map(|o| o.to_string())
+                .unwrap_or_default(),
             _ => String::new(),
         };
         escape_csq_into(&value, &mut result);
@@ -201,7 +205,10 @@ fn format_position_range(pos: Option<(u64, u64)>) -> String {
     }
 }
 
-/// Default CSQ fields matching Ensembl VEP's extended output format (42 fields).
+/// Default CSQ fields matching Ensembl VEP's extended output format.
+///
+/// Includes all standard VEP fields (CANONICAL, CCDS, ENSP, SOURCE,
+/// HGVS_OFFSET) plus extended annotations (MANE, SIFT, PolyPhen, etc.).
 pub const DEFAULT_CSQ_FIELDS: &[&str] = &[
     "Allele",
     "Consequence",
@@ -226,6 +233,7 @@ pub const DEFAULT_CSQ_FIELDS: &[&str] = &[
     "DISTANCE",
     "STRAND",
     "FLAGS",
+    "CANONICAL",
     "SYMBOL_SOURCE",
     "HGNC_ID",
     "MANE",
@@ -233,6 +241,10 @@ pub const DEFAULT_CSQ_FIELDS: &[&str] = &[
     "MANE_PLUS_CLINICAL",
     "TSL",
     "APPRIS",
+    "CCDS",
+    "ENSP",
+    "SOURCE",
+    "HGVS_OFFSET",
     "SIFT",
     "PolyPhen",
     "AF",

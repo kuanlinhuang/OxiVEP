@@ -55,6 +55,8 @@ COMPARE_FIELDS = [
     'EXON', 'INTRON', 'HGVSc', 'HGVSp',
     'cDNA_position', 'CDS_position', 'Protein_position',
     'Amino_acids', 'Codons', 'DISTANCE', 'STRAND',
+    'FLAGS', 'CANONICAL', 'SYMBOL_SOURCE', 'HGNC_ID',
+    'TSL', 'APPRIS', 'SOURCE',
 ]
 
 CODING_CONSEQS = {
