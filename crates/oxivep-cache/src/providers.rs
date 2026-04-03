@@ -19,6 +19,11 @@ pub trait TranscriptProvider: Send + Sync {
 pub trait SequenceProvider: Send + Sync {
     /// Fetch reference sequence for a region (1-based, inclusive).
     fn fetch_sequence(&self, chrom: &str, start: u64, end: u64) -> Result<Vec<u8>>;
+
+    /// Fetch a reference sequence slice. Default delegates to fetch_sequence.
+    fn fetch_sequence_slice(&self, chrom: &str, start: u64, end: u64) -> Result<Vec<u8>> {
+        self.fetch_sequence(chrom, start, end)
+    }
 }
 
 /// In-memory transcript provider backed by a Vec<Transcript>.
@@ -128,14 +133,27 @@ impl FastaSequenceProvider {
     pub fn new(reader: crate::fasta::FastaReader) -> Self {
         Self { reader }
     }
-
-    /// Zero-allocation sequence fetch returning a borrowed slice.
-    pub fn fetch_sequence_slice(&self, chrom: &str, start: u64, end: u64) -> Result<&[u8]> {
-        self.reader.fetch_slice(chrom, start, end)
-    }
 }
 
 impl SequenceProvider for FastaSequenceProvider {
+    fn fetch_sequence(&self, chrom: &str, start: u64, end: u64) -> Result<Vec<u8>> {
+        self.reader.fetch(chrom, start, end)
+    }
+}
+
+/// Sequence provider backed by a memory-mapped FASTA reader.
+/// Uses .fai index for random access without loading the full file into RAM.
+pub struct MmapFastaSequenceProvider {
+    reader: crate::fasta::MmapFastaReader,
+}
+
+impl MmapFastaSequenceProvider {
+    pub fn new(reader: crate::fasta::MmapFastaReader) -> Self {
+        Self { reader }
+    }
+}
+
+impl SequenceProvider for MmapFastaSequenceProvider {
     fn fetch_sequence(&self, chrom: &str, start: u64, end: u64) -> Result<Vec<u8>> {
         self.reader.fetch(chrom, start, end)
     }

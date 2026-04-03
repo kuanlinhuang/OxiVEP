@@ -94,13 +94,20 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
         }
     };
 
-    // Load FASTA reference
-    let seq_provider: Option<FastaSequenceProvider> = if let Some(ref fasta_path) = config.fasta {
-        let fasta_file = File::open(fasta_path)
-            .with_context(|| format!("Opening FASTA file: {}", fasta_path))?;
-        let reader = FastaReader::from_reader(fasta_file)?;
-        eprintln!("Loaded reference FASTA from {}", fasta_path);
-        Some(FastaSequenceProvider::new(reader))
+    // Load FASTA reference (prefer mmap with .fai index, fall back to in-memory)
+    let seq_provider: Option<Box<dyn SequenceProvider>> = if let Some(ref fasta_path) = config.fasta {
+        let fai_path = format!("{}.fai", fasta_path);
+        if Path::new(&fai_path).exists() {
+            let reader = oxivep_cache::fasta::MmapFastaReader::open(Path::new(fasta_path))?;
+            eprintln!("Memory-mapped reference FASTA from {} (using .fai index)", fasta_path);
+            Some(Box::new(oxivep_cache::providers::MmapFastaSequenceProvider::new(reader)))
+        } else {
+            let fasta_file = File::open(fasta_path)
+                .with_context(|| format!("Opening FASTA file: {}", fasta_path))?;
+            let reader = FastaReader::from_reader(fasta_file)?;
+            eprintln!("Loaded reference FASTA from {}", fasta_path);
+            Some(Box::new(FastaSequenceProvider::new(reader)))
+        }
     } else {
         None
     };
@@ -392,7 +399,7 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
                                                 if let Some((istart, iend)) = tr.intron_bounds_at(vf.position.start) {
                                                     // Use genomic-strand alleles for ref comparison
                                                     three_prime_shift_intronic(
-                                                        sp as &dyn SequenceProvider, chrom,
+                                                        &**sp as &dyn SequenceProvider, chrom,
                                                         vf.position.start, vf.position.end,
                                                         &vf.ref_allele, &ac.allele,
                                                         tr.strand, istart, iend,
@@ -516,7 +523,7 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
                                                                 // 3' shift the dup position within the intron
                                                                 let shifted_dup = if let Some((istart, iend)) = tr.intron_bounds_at(dup_base_pos) {
                                                                     let (sd, _) = three_prime_shift_intronic(
-                                                                        sp as &dyn SequenceProvider, chrom,
+                                                                        &**sp as &dyn SequenceProvider, chrom,
                                                                         dup_base_pos, dup_base_pos,
                                                                         &Allele::Sequence(orig_ins.clone()), &Allele::Deletion,
                                                                         tr.strand, istart, iend,
@@ -555,7 +562,7 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
                                             if is_indel {
                                                 if let Some((istart, iend)) = tr.intron_bounds_at(vf.position.start) {
                                                     three_prime_shift_intronic(
-                                                        sp as &dyn SequenceProvider, chrom,
+                                                        &**sp as &dyn SequenceProvider, chrom,
                                                         vf.position.start, vf.position.end,
                                                         &vf.ref_allele, &ac.allele,
                                                         tr.strand, istart, iend,
@@ -644,7 +651,7 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
                                                                 let dup_base_pos = if dup_before { vf.position.end } else { vf.position.start };
                                                                 let shifted_dup = if let Some((istart, iend)) = tr.intron_bounds_at(dup_base_pos) {
                                                                     let (sd, _) = three_prime_shift_intronic(
-                                                                        sp as &dyn SequenceProvider, chrom,
+                                                                        &**sp as &dyn SequenceProvider, chrom,
                                                                         dup_base_pos, dup_base_pos,
                                                                         &Allele::Sequence(orig_ins.clone()), &Allele::Deletion,
                                                                         tr.strand, istart, iend,

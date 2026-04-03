@@ -82,6 +82,73 @@ impl FastaReader {
     }
 }
 
+/// Memory-mapped FASTA reader using .fai index.
+/// Avoids loading the entire FASTA into RAM by memory-mapping the file.
+pub struct MmapFastaReader {
+    mmap: memmap2::Mmap,
+    index: Vec<FaiEntry>,
+}
+
+impl MmapFastaReader {
+    /// Create a memory-mapped FASTA reader from a file with a .fai index.
+    pub fn open(fasta_path: &std::path::Path) -> Result<Self> {
+        let fai_path = format!("{}.fai", fasta_path.display());
+        let fai_contents = std::fs::read_to_string(&fai_path)
+            .with_context(|| format!("Reading FASTA index: {}", fai_path))?;
+        let index = parse_fai(&fai_contents)?;
+
+        let file = std::fs::File::open(fasta_path)
+            .with_context(|| format!("Opening FASTA: {}", fasta_path.display()))?;
+        let mmap = unsafe { memmap2::Mmap::map(&file) }
+            .with_context(|| "Memory-mapping FASTA file")?;
+
+        Ok(Self { mmap, index })
+    }
+
+    /// Fetch a region as a new Vec (1-based, inclusive coordinates).
+    pub fn fetch(&self, chrom: &str, start: u64, end: u64) -> Result<Vec<u8>> {
+        let entry = self.index.iter().find(|e| e.name == chrom)
+            .with_context(|| format!("Chromosome '{}' not found in FASTA index", chrom))?;
+
+        let start_0 = start.saturating_sub(1);
+        let end_0 = end.min(entry.length).saturating_sub(1);
+
+        if start_0 >= entry.length {
+            anyhow::bail!("Start {} exceeds length {} for {}", start, entry.length, chrom);
+        }
+
+        let bases_needed = (end_0 - start_0 + 1) as usize;
+        let mut result = Vec::with_capacity(bases_needed);
+
+        // Calculate byte offset for start position
+        let start_line = start_0 / entry.line_bases;
+        let start_col = start_0 % entry.line_bases;
+        let mut byte_offset = (entry.offset + start_line * entry.line_bytes + start_col) as usize;
+
+        while result.len() < bases_needed && byte_offset < self.mmap.len() {
+            let b = self.mmap[byte_offset];
+            if b == b'\n' || b == b'\r' {
+                byte_offset += 1;
+                continue;
+            }
+            result.push(b.to_ascii_uppercase());
+            byte_offset += 1;
+        }
+
+        Ok(result)
+    }
+
+    /// Get the length of a chromosome.
+    pub fn sequence_length(&self, chrom: &str) -> Option<u64> {
+        self.index.iter().find(|e| e.name == chrom).map(|e| e.length)
+    }
+
+    /// Get the list of sequence names.
+    pub fn sequence_names(&self) -> Vec<&str> {
+        self.index.iter().map(|e| e.name.as_str()).collect()
+    }
+}
+
 /// Parsed FASTA index (.fai) entry.
 #[derive(Debug, Clone)]
 pub struct FaiEntry {
