@@ -246,6 +246,10 @@ Benchmarked on Apple M-series (ARM64), single-threaded, release build.
 
 Apache License 2.0
 
+## Related Tools
+
+- **[RastQC](https://doi.org/10.64898/2026.03.31.715630)** — High-performance sequencing quality control written in Rust (Huang, 2026)
+
 ## Acknowledgements
 
 OxiVEP is inspired by [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html) by EMBL-EBI. The consequence prediction logic follows the Sequence Ontology term definitions and the Ensembl variant annotation framework.
