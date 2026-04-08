@@ -13,4 +13,5 @@ pub mod primateai;
 pub mod revel;
 pub mod scores;
 pub mod spliceai;
+pub mod gnomad_v2;
 pub mod topmed;
