@@ -108,6 +108,25 @@ enum Commands {
         output: String,
     },
 
+    /// Build a supplementary annotation database (.osa) from a source file
+    SaBuild {
+        /// Source type: clinvar, gnomad, dbsnp
+        #[arg(long)]
+        source: String,
+
+        /// Input file (VCF, typically gzipped)
+        #[arg(short, long)]
+        input: String,
+
+        /// Output base path (will create .osa and .osa.idx)
+        #[arg(short, long)]
+        output: String,
+
+        /// Genome assembly (e.g., GRCh38)
+        #[arg(long, default_value = "GRCh38")]
+        assembly: String,
+    },
+
     /// Filter annotated VEP output
     Filter {
         /// Input file (VEP-annotated VCF)
@@ -165,6 +184,14 @@ fn main() -> Result<()> {
         }
         Commands::Web { port, gff3, fasta } => {
             webserver::run_server(port, gff3, fasta)?;
+        }
+        Commands::SaBuild {
+            source,
+            input,
+            output,
+            assembly,
+        } => {
+            pipeline::run_sa_build(&source, &input, &output, &assembly)?;
         }
         Commands::Filter { input, filter, .. } => {
             log::info!("OxiVEP filter: input={}, filter={}", input, filter);

@@ -17,8 +17,10 @@ oxivep-consequence = { workspace = true }
 oxivep-hgvs = { workspace = true }
 oxivep-io = { workspace = true }
 oxivep-filter = { workspace = true }
+oxivep-sa = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
+flate2 = { workspace = true }
 rayon = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }

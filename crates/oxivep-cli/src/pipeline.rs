@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use oxivep_cache::annotation::{AnnotationProvider, AnnotationValue};
 use oxivep_cache::fasta::FastaReader;
 use oxivep_cache::gff::parse_gff3;
 use oxivep_cache::info::CacheInfo;
@@ -165,6 +166,13 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
         None
     };
 
+    // Load supplementary annotation providers from --sa-dir
+    let sa_providers: Vec<Box<dyn AnnotationProvider>> = if let Some(ref dir) = config.sa_dir {
+        load_sa_providers(Path::new(dir))?
+    } else {
+        Vec::new()
+    };
+
     // Create consequence predictor
     let predictor = ConsequencePredictor::new(config.distance, config.distance);
 
@@ -278,6 +286,23 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
 
         if batch.is_empty() {
             break;
+        }
+
+        // Phase 1.5: Preload SA providers for this batch (sequential)
+        if !sa_providers.is_empty() && !batch.is_empty() {
+            // Collect all positions in this batch, grouped by chromosome
+            let mut chrom_positions: HashMap<&str, Vec<u64>> = HashMap::new();
+            for (vf, _) in &batch {
+                chrom_positions
+                    .entry(&vf.position.chromosome)
+                    .or_default()
+                    .push(vf.position.start);
+            }
+            for sa in &sa_providers {
+                for (chrom, positions) in &chrom_positions {
+                    let _ = sa.preload(chrom, positions);
+                }
+            }
         }
 
         // Phase 2: Annotate batch in parallel (transcript lookup + consequence prediction + HGVS)
@@ -773,6 +798,34 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
                         hgnc_id: transcript.and_then(|t| t.gene.hgnc_id.clone()),
                         flags: transcript.map(|t| t.flags.clone()).unwrap_or_default(),
                     });
+                }
+            }
+
+            // Supplementary annotation: query SA providers for each allele
+            if !sa_providers.is_empty() {
+                let chrom = &vf.position.chromosome;
+                for tv in &mut vf.transcript_variations {
+                    for aa in &mut tv.allele_annotations {
+                        let alt_str = aa.allele.to_string();
+                        let ref_str = vf.ref_allele.to_string();
+                        for sa in &sa_providers {
+                            if let Ok(Some(ann)) =
+                                sa.annotate_position(chrom, vf.position.start, &ref_str, &alt_str)
+                            {
+                                let json_str = match ann {
+                                    AnnotationValue::Json(j) => j,
+                                    AnnotationValue::Positional(j) => j,
+                                    AnnotationValue::Interval(v) => {
+                                        format!("[{}]", v.join(","))
+                                    }
+                                };
+                                aa.supplementary.push((
+                                    sa.json_key().to_string(),
+                                    json_str,
+                                ));
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1595,4 +1648,142 @@ fn prescan_vcf_regions(vcf_path: &str, distance: u64) -> Result<Vec<(String, u64
     }
 
     Ok(regions.into_iter().map(|(chrom, (s, e))| (chrom, s, e)).collect())
+}
+
+// =============================================================================
+// SA Build: Build supplementary annotation databases from source VCFs
+// =============================================================================
+
+/// Standard chromosome ordering for SA builds.
+fn standard_chrom_map() -> (Vec<String>, std::collections::HashMap<String, u16>) {
+    let chroms: Vec<String> = (1..=22)
+        .map(|i| format!("chr{}", i))
+        .chain(["chrX", "chrY", "chrM"].iter().map(|s| s.to_string()))
+        .collect();
+    let map: std::collections::HashMap<String, u16> = chroms
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (c.clone(), i as u16))
+        .collect();
+    (chroms, map)
+}
+
+/// Build a supplementary annotation .osa file from a source VCF.
+pub fn run_sa_build(source: &str, input: &str, output: &str, assembly: &str) -> Result<()> {
+    use oxivep_sa::index::IndexHeader;
+    use oxivep_sa::writer::SaWriter;
+
+    let (chrom_list, chrom_map) = standard_chrom_map();
+
+    let header = match source {
+        "clinvar" => IndexHeader {
+            schema_version: oxivep_sa::common::SCHEMA_VERSION,
+            json_key: "clinvar".into(),
+            name: "ClinVar".into(),
+            version: "latest".into(),
+            description: format!("ClinVar annotations for {}", assembly),
+            assembly: assembly.into(),
+            match_by_allele: true,
+            is_array: true,
+            is_positional: false,
+        },
+        "gnomad" => IndexHeader {
+            schema_version: oxivep_sa::common::SCHEMA_VERSION,
+            json_key: "gnomad".into(),
+            name: "gnomAD".into(),
+            version: "latest".into(),
+            description: format!("gnomAD population frequencies for {}", assembly),
+            assembly: assembly.into(),
+            match_by_allele: true,
+            is_array: false,
+            is_positional: false,
+        },
+        "dbsnp" => IndexHeader {
+            schema_version: oxivep_sa::common::SCHEMA_VERSION,
+            json_key: "dbsnp".into(),
+            name: "dbSNP".into(),
+            version: "latest".into(),
+            description: format!("dbSNP RS IDs for {}", assembly),
+            assembly: assembly.into(),
+            match_by_allele: true,
+            is_array: false,
+            is_positional: false,
+        },
+        _ => anyhow::bail!("Unknown source: {}. Supported: clinvar, gnomad, dbsnp", source),
+    };
+
+    eprintln!("Building {} .osa from: {}", source, input);
+
+    let file = File::open(input)
+        .with_context(|| format!("Opening input file: {}", input))?;
+    let reader: Box<dyn io::Read> = if input.ends_with(".gz") {
+        Box::new(flate2::read::GzDecoder::new(file))
+    } else {
+        Box::new(file)
+    };
+    let buf_reader = io::BufReader::new(reader);
+
+    let records = match source {
+        "clinvar" => oxivep_sa::sources::clinvar::parse_clinvar_vcf(buf_reader, &chrom_map)?,
+        "gnomad" => oxivep_sa::sources::gnomad::parse_gnomad_vcf(buf_reader, &chrom_map)?,
+        "dbsnp" => oxivep_sa::sources::dbsnp::parse_dbsnp_vcf(buf_reader, &chrom_map)?,
+        _ => unreachable!(),
+    };
+
+    eprintln!("Parsed {} records from {}", records.len(), source);
+
+    let output_path = Path::new(output);
+    let mut writer = SaWriter::new(header);
+    writer.write_to_files(output_path, records.into_iter(), &chrom_list)?;
+
+    eprintln!(
+        "Wrote: {} and {}",
+        output_path.with_extension("osa").display(),
+        output_path.with_extension("osa.idx").display()
+    );
+
+    Ok(())
+}
+
+// =============================================================================
+// SA Provider Loading: discover and load .osa files from --sa-dir
+// =============================================================================
+
+/// Load all .osa annotation providers from a directory.
+pub fn load_sa_providers(
+    sa_dir: &Path,
+) -> Result<Vec<Box<dyn oxivep_cache::annotation::AnnotationProvider>>> {
+    use oxivep_sa::reader::SaReader;
+
+    let mut providers: Vec<Box<dyn oxivep_cache::annotation::AnnotationProvider>> = Vec::new();
+
+    if !sa_dir.is_dir() {
+        anyhow::bail!("SA directory does not exist: {}", sa_dir.display());
+    }
+
+    for entry in std::fs::read_dir(sa_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("osa") {
+            match SaReader::open(&path) {
+                Ok(reader) => {
+                    eprintln!(
+                        "Loaded SA provider: {} ({})",
+                        reader.name(),
+                        path.display()
+                    );
+                    providers.push(Box::new(reader));
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Warning: could not load SA file {}: {}",
+                        path.display(),
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(providers)
 }
