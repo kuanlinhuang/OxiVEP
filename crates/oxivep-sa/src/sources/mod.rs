@@ -1,12 +1,11 @@
 //! Source-specific parsers for building annotation databases.
-//!
-//! Each submodule implements a parser for a specific data source
-//! that produces `AnnotationRecord`s for the `SaWriter`.
 
 pub mod clinvar;
 pub mod dbnsfp;
 pub mod dbsnp;
 pub mod gnomad;
+pub mod gnomad_gene;
+pub mod omim;
 pub mod primateai;
 pub mod revel;
 pub mod scores;
