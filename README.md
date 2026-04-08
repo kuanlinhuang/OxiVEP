@@ -276,22 +276,28 @@ cargo test -p oxivep-sa           # Supplementary annotation format tests
 
 ## Performance Benchmarks
 
-Benchmarked on Apple M-series (ARM64), single-threaded, release build.
+Benchmarked on Apple M-series (ARM64), release build with LTO. Median of 3 runs, full Ensembl annotations with FASTA and HGVS.
 
-| Dataset | Variants | Time | Throughput |
-|---------|----------|------|------------|
-| Human chr21 (20 genes) | 1,000 | 0.037s | **27,000 variants/sec** |
-| Human chr21 (20 genes) | 10,000 | 0.057s | **175,000 variants/sec** |
-| Human chr21 (20 genes) | 50,000 | 0.128s | **391,000 variants/sec** |
+### Multi-Organism Throughput
+
+| Organism | Transcripts | Variants | Time | Throughput |
+|----------|-------------|----------|------|------------|
+| Yeast (R64, full genome) | 7,036 | 260,526 | 1.47s | **176,796 v/s** |
+| C. elegans (WBcel235, full) | 44,365 | 100,000 | 2.70s | **37,023 v/s** |
+| Drosophila (BDGP6, full) | 35,442 | 100,000 | 2.76s | **36,286 v/s** |
+| Arabidopsis (TAIR10, full) | 54,013 | 500,000 | 5.95s | **83,967 v/s** |
+| Human chr22 (GRCh38) | 11,605 | 500,000 | 4.76s | **105,117 v/s** |
+| Mouse (GRCm39, full genome) | 142,626 | 500,000 | 12.32s | **40,577 v/s** |
+| Human full WGS (GRCh38) | 508,530 | 3,893,341 | 29.69s | **131,155 v/s** |
 
 ### vs. Ensembl VEP
 
 | Metric | Ensembl VEP (Perl) | OxiVEP (Rust) |
 |--------|-------------------|---------------|
-| Startup time | 5-15s | <0.05s |
-| 1,000 SNVs (offline) | ~3-10s | **0.04s** |
+| Full WGS (3.9M variants) | est. ~109 min | **29.7s** |
+| 500K variants (chr22) | 674s | **4.76s (142x)** |
 | Peak memory (100K variants) | ~500 MB | **2.8 MB** |
-| Binary size | ~200 MB installed | **3.2 MB** |
+| Binary size | ~200 MB installed | **2.3 MB** |
 | Dependencies | Perl 5.22+, DBI, 10+ CPAN modules | **None** |
 
 ## License

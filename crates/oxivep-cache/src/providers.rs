@@ -59,13 +59,19 @@ impl TranscriptProvider for MemoryTranscriptProvider {
     }
 }
 
-/// High-performance transcript provider using per-chromosome sorted arrays
-/// and binary search for O(log n + k) lookups instead of O(n) linear scans.
+/// High-performance transcript provider using per-chromosome sorted arrays,
+/// binary search, and suffix-max-end for O(log n + k) lookups with early termination.
 ///
-/// Inspired by echtvar's chunked binary search with same-region caching.
+/// Each chromosome's transcripts are sorted by start position. A parallel
+/// `suffix_max_end` array stores the maximum `end` value from index `i` to the
+/// end of the array, enabling early termination when scanning backwards:
+/// if `suffix_max_end[i] < query_start`, no transcript at index <= i can overlap.
 pub struct IndexedTranscriptProvider {
     /// Transcripts grouped by chromosome, sorted by start position within each group.
     by_chrom: HashMap<Arc<str>, Vec<Transcript>>,
+    /// Suffix-max-end arrays: `suffix_max_end[chrom][i]` = max(end) for transcripts[i..].
+    /// Enables early termination in backward scan.
+    suffix_max_end: HashMap<Arc<str>, Vec<u64>>,
 }
 
 impl IndexedTranscriptProvider {
@@ -81,7 +87,20 @@ impl IndexedTranscriptProvider {
         for trs in by_chrom.values_mut() {
             trs.sort_by_key(|t| t.start);
         }
-        Self { by_chrom }
+        // Build suffix-max-end arrays for early termination
+        let mut suffix_max_end = HashMap::new();
+        for (chrom, trs) in &by_chrom {
+            let n = trs.len();
+            let mut sme = vec![0u64; n];
+            if n > 0 {
+                sme[n - 1] = trs[n - 1].end;
+                for i in (0..n - 1).rev() {
+                    sme[i] = trs[i].end.max(sme[i + 1]);
+                }
+            }
+            suffix_max_end.insert(Arc::clone(chrom), sme);
+        }
+        Self { by_chrom, suffix_max_end }
     }
 
     pub fn transcript_count(&self) -> usize {
@@ -95,21 +114,22 @@ impl TranscriptProvider for IndexedTranscriptProvider {
             Some(trs) => trs,
             None => return Ok(Vec::new()),
         };
+        let sme = &self.suffix_max_end[chrom];
 
         // Binary search: find the first transcript whose start > end (query end).
         // All transcripts that could overlap must have start <= end, so they're in [0..upper).
         let upper = trs.partition_point(|t| t.start <= end);
 
         // From [0..upper), filter those whose end >= start (query start).
-        // Since transcripts are sorted by start, scan backward from upper until
-        // we're sure no more can overlap.
+        // Use suffix_max_end for early termination: if the max end from index i
+        // onwards is less than query start, no transcript at i or earlier can overlap.
         let mut results = Vec::new();
-        for t in trs[..upper].iter().rev() {
-            // If this transcript ends before our query start, and since transcripts
-            // are sorted by start (not end), we can't early-exit here — a transcript
-            // that starts earlier might extend further. So we scan all of [0..upper).
-            if t.end >= start {
-                results.push(t);
+        for i in (0..upper).rev() {
+            if sme[i] < start {
+                break; // No transcript from [0..=i] can reach query start
+            }
+            if trs[i].end >= start {
+                results.push(&trs[i]);
             }
         }
         results.reverse(); // Restore start-position order

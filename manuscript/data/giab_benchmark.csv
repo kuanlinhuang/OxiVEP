@@ -1,4 +1,4 @@
 dataset,build,variants,transcripts,oxivep_time_sec,vep_time_sec,speedup
-NA12878_chr22,GRCh38,49484,11605,0.25,83.0,332
-NA12878_full_wgs,GRCh38,3893341,508530,10.2,,
+NA12878_chr22,GRCh38,49484,11605,0.6570,83.0,126
+NA12878_full_wgs,GRCh38,3893341,508530,29.6851,,
 NA12878_chr22,GRCh37,49056,116606,2.1,33.1,16

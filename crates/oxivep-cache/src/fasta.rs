@@ -87,6 +87,8 @@ impl FastaReader {
 pub struct MmapFastaReader {
     mmap: memmap2::Mmap,
     index: Vec<FaiEntry>,
+    /// O(1) chromosome name → index position lookup.
+    name_to_idx: HashMap<String, usize>,
 }
 
 impl MmapFastaReader {
@@ -96,19 +98,30 @@ impl MmapFastaReader {
         let fai_contents = std::fs::read_to_string(&fai_path)
             .with_context(|| format!("Reading FASTA index: {}", fai_path))?;
         let index = parse_fai(&fai_contents)?;
+        let name_to_idx: HashMap<String, usize> = index.iter()
+            .enumerate()
+            .map(|(i, e)| (e.name.clone(), i))
+            .collect();
 
         let file = std::fs::File::open(fasta_path)
             .with_context(|| format!("Opening FASTA: {}", fasta_path.display()))?;
         let mmap = unsafe { memmap2::Mmap::map(&file) }
             .with_context(|| "Memory-mapping FASTA file")?;
 
-        Ok(Self { mmap, index })
+        Ok(Self { mmap, index, name_to_idx })
+    }
+
+    #[inline]
+    fn get_entry(&self, chrom: &str) -> Result<&FaiEntry> {
+        let idx = self.name_to_idx.get(chrom)
+            .with_context(|| format!("Chromosome '{}' not found in FASTA index", chrom))?;
+        Ok(&self.index[*idx])
     }
 
     /// Fetch a region as a new Vec (1-based, inclusive coordinates).
+    /// Uses line-aware bulk copy instead of byte-by-byte scanning.
     pub fn fetch(&self, chrom: &str, start: u64, end: u64) -> Result<Vec<u8>> {
-        let entry = self.index.iter().find(|e| e.name == chrom)
-            .with_context(|| format!("Chromosome '{}' not found in FASTA index", chrom))?;
+        let entry = self.get_entry(chrom)?;
 
         let start_0 = start.saturating_sub(1);
         let end_0 = end.min(entry.length).saturating_sub(1);
@@ -120,19 +133,22 @@ impl MmapFastaReader {
         let bases_needed = (end_0 - start_0 + 1) as usize;
         let mut result = Vec::with_capacity(bases_needed);
 
-        // Calculate byte offset for start position
-        let start_line = start_0 / entry.line_bases;
-        let start_col = start_0 % entry.line_bases;
-        let mut byte_offset = (entry.offset + start_line * entry.line_bytes + start_col) as usize;
+        // Copy line-by-line using computed offsets (avoids per-byte newline checks)
+        let mut pos = start_0;
+        while result.len() < bases_needed {
+            let line_num = pos / entry.line_bases;
+            let col = pos % entry.line_bases;
+            let byte_offset = (entry.offset + line_num * entry.line_bytes + col) as usize;
 
-        while result.len() < bases_needed && byte_offset < self.mmap.len() {
-            let b = self.mmap[byte_offset];
-            if b == b'\n' || b == b'\r' {
-                byte_offset += 1;
-                continue;
+            // How many bases remain on this line?
+            let bases_on_line = (entry.line_bases - col) as usize;
+            let to_copy = bases_on_line.min(bases_needed - result.len());
+
+            let end_byte = (byte_offset + to_copy).min(self.mmap.len());
+            for &b in &self.mmap[byte_offset..end_byte] {
+                result.push(b.to_ascii_uppercase());
             }
-            result.push(b.to_ascii_uppercase());
-            byte_offset += 1;
+            pos += to_copy as u64;
         }
 
         Ok(result)
@@ -140,7 +156,7 @@ impl MmapFastaReader {
 
     /// Get the length of a chromosome.
     pub fn sequence_length(&self, chrom: &str) -> Option<u64> {
-        self.index.iter().find(|e| e.name == chrom).map(|e| e.length)
+        self.get_entry(chrom).ok().map(|e| e.length)
     }
 
     /// Get the list of sequence names.
