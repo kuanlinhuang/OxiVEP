@@ -286,15 +286,15 @@ OxiVEP's binary transcript cache enables rapid startup (0.62 seconds for 11,605 
 
 ### 3.4 Output Format Performance
 
-**Table 5. Output format comparison for 10,000 synthetic variants.**
+**Table 5. Output format comparison for 10,000 real Ensembl chr22 variants.**
 
 | Format | Time (sec) | Output size |
 |--------|-----------|-------------|
-| VCF (CSQ, 47 fields) | 0.084 | 926 KB |
-| Tab-delimited | 0.060 | 772 KB |
-| JSON | 0.063 | 4,205 KB |
+| VCF (CSQ, 47 fields) | 0.649 | 2,236 KB |
+| Tab-delimited | 0.646 | 1,463 KB |
+| JSON | 0.682 | 6,228 KB |
 
-VCF output is slightly slower due to the 47-field CSQ construction and character escaping. JSON output produces substantially larger files (~4.5x larger than tab) due to the verbose structured format, but provides richer programmatic access to nested consequence data.
+All three output formats perform similarly, with annotation time dominating over formatting overhead. JSON output produces substantially larger files (~4.3x larger than tab) due to the verbose structured format, but provides richer programmatic access to nested consequence data.
 
 ### 3.5 Cross-Organism Annotation
 
