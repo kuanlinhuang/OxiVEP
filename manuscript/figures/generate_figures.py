@@ -12,6 +12,8 @@ try:
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
+    import matplotlib.patches as mpatches
+    from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
     HAS_MPL = True
 except ImportError:
     HAS_MPL = False
@@ -29,6 +31,11 @@ COLORS = {
     'low': '#3b82f6',
     'modifier': '#6b7280',
     'success': '#10b981',
+    'cli': '#6c7aee',
+    'mid': '#818cf8',
+    'data': '#34d399',
+    'core': '#f59e0b',
+    'sa': '#f472b6',
 }
 
 def read_csv(filename):
@@ -36,6 +43,82 @@ def read_csv(filename):
     with open(path) as f:
         reader = csv.DictReader(f)
         return list(reader)
+
+
+def fig1_architecture():
+    """Figure 1: Architecture diagram as a proper figure."""
+    if not HAS_MPL:
+        print("Figure 1: Architecture (text-only, matplotlib not available)")
+        return
+
+    fig, ax = plt.subplots(figsize=(14, 9))
+    ax.set_xlim(0, 14)
+    ax.set_ylim(0, 9)
+    ax.axis('off')
+
+    def box(x, y, w, h, label, sublabel, color, fontsize=11):
+        rect = FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.15",
+                              facecolor=color, edgecolor='#374151', linewidth=1.5, alpha=0.9)
+        ax.add_patch(rect)
+        ax.text(x + w/2, y + h/2 + 0.15, label, ha='center', va='center',
+                fontsize=fontsize, fontweight='bold', color='white')
+        if sublabel:
+            ax.text(x + w/2, y + h/2 - 0.2, sublabel, ha='center', va='center',
+                    fontsize=8, color='white', alpha=0.9, style='italic')
+
+    def arrow(x1, y1, x2, y2):
+        ax.annotate('', xy=(x2, y2), xytext=(x1, y1),
+                    arrowprops=dict(arrowstyle='->', color='#6b7280', lw=1.5))
+
+    # Title
+    ax.text(7, 8.6, 'OxiVEP Architecture', ha='center', va='center',
+            fontsize=16, fontweight='bold', color='#1f2937')
+    ax.text(7, 8.25, '9-crate Cargo workspace', ha='center', va='center',
+            fontsize=10, color='#6b7280')
+
+    # Layer 1: CLI (top)
+    box(2.5, 7.0, 9, 0.9, 'oxivep-cli', 'Pipeline, web server, cache builder, SA builder', COLORS['cli'], 13)
+
+    # Layer 2: Middle crates
+    box(0.3, 5.3, 2.6, 0.9, 'oxivep-io', 'VCF/CSQ/JSON I/O', COLORS['mid'])
+    box(3.2, 5.3, 2.6, 0.9, 'oxivep-hgvs', 'HGVSg/c/p', COLORS['mid'])
+    box(6.1, 5.3, 2.8, 0.9, 'oxivep-consequence', 'SNV/indel/SV engine', COLORS['mid'])
+    box(9.2, 5.3, 2.2, 0.9, 'oxivep-filter', 'Filter engine', COLORS['mid'])
+    box(11.7, 5.3, 2.0, 0.9, 'oxivep-sa', 'Annotations', COLORS['sa'])
+
+    # Layer 3: Data layer
+    box(0.5, 3.5, 3.5, 0.9, 'oxivep-genome', 'Transcript, Exon, Gene, CodonTable', COLORS['data'])
+    box(4.5, 3.5, 5.0, 0.9, 'oxivep-cache', 'GFF3, FASTA mmap, tabix, binary cache', COLORS['data'])
+    box(10.0, 3.5, 3.5, 0.9, 'oxivep-sa (OxiSA)', 'ClinVar, gnomAD, REVEL, ...', COLORS['sa'])
+
+    # Layer 4: Core (bottom)
+    box(3.0, 1.7, 8.0, 0.9, 'oxivep-core', 'GenomicPosition, Consequence (49 SO terms), Allele, Strand, Impact, VariantType', COLORS['core'], 12)
+
+    # Arrows: CLI -> middle layer
+    for x in [1.6, 4.5, 7.5, 10.3, 12.7]:
+        arrow(7, 7.0, x, 6.2)
+
+    # Arrows: middle -> data layer
+    for x in [1.6, 4.5, 7.5]:
+        arrow(x, 5.3, x, 4.4)
+    arrow(12.7, 5.3, 11.75, 4.4)
+
+    # Arrows: data -> core
+    for x in [2.25, 7.0]:
+        arrow(x, 3.5, 7.0, 2.6)
+    arrow(11.75, 3.5, 7.0, 2.6)
+
+    # Stats annotation
+    stats_text = "16,885 LOC  |  233 tests  |  2.3 MB binary (LTO + strip)"
+    ax.text(7, 0.8, stats_text, ha='center', va='center',
+            fontsize=10, color='#6b7280',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='#f3f4f6', edgecolor='#d1d5db'))
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(FIG_DIR, 'fig1_architecture.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(FIG_DIR, 'fig1_architecture.pdf'), bbox_inches='tight')
+    print("Saved fig1_architecture.png/pdf")
+    plt.close()
 
 
 def fig2_throughput_comparison():
@@ -173,13 +256,11 @@ def fig4_consequence_distribution():
         ax.text(bar.get_width() * 1.1, bar.get_y() + bar.get_height()/2,
                 f'{count:,}', va='center', fontsize=9, color='#555')
 
-    # Legend for impact colors
-    from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor=COLORS['high'], alpha=0.85, label='HIGH'),
-        Patch(facecolor=COLORS['moderate'], alpha=0.85, label='MODERATE'),
-        Patch(facecolor=COLORS['low'], alpha=0.85, label='LOW'),
-        Patch(facecolor=COLORS['modifier'], alpha=0.85, label='MODIFIER'),
+        mpatches.Patch(facecolor=COLORS['high'], alpha=0.85, label='HIGH'),
+        mpatches.Patch(facecolor=COLORS['moderate'], alpha=0.85, label='MODERATE'),
+        mpatches.Patch(facecolor=COLORS['low'], alpha=0.85, label='LOW'),
+        mpatches.Patch(facecolor=COLORS['modifier'], alpha=0.85, label='MODIFIER'),
     ]
     ax.legend(handles=legend_elements, title='Impact', loc='lower right', fontsize=9)
 
@@ -250,36 +331,76 @@ def fig5_resource_usage():
     plt.close()
 
 
-def fig1_architecture():
-    """Figure 1: Architecture diagram (text-based)."""
-    diagram = """
-    ┌─────────────────────────────────────────────────────────────────┐
-    │                        oxivep-cli                               │
-    │    (CLI binary, pipeline, cache builder, embedded web server)    │
-    └──────┬──────────┬──────────┬──────────┬──────────┬─────────────┘
-           │          │          │          │          │
-    ┌──────▼──┐ ┌─────▼─────┐ ┌─▼────────┐ │   ┌──────▼──────┐
-    │oxivep-io│ │oxivep-hgvs│ │oxivep-   │ │   │oxivep-filter│
-    │(VCF I/O,│ │(HGVSg,    │ │consequen-│ │   │(filtering)  │
-    │ 47-field│ │ HGVSc,    │ │ce engine)│ │   └─────────────┘
-    │  CSQ)   │ │ HGVSp)    │ └──┬───────┘ │
-    └────┬────┘ └─────┬─────┘    │         │
-         │            │          │    ┌────▼─────────┐
-    ┌────▼────────────▼──────────▼──┐ │oxivep-cache  │
-    │        oxivep-genome          │ │(GFF3, FASTA, │
-    │  (Transcript, Exon, Gene,     │ │ tabix, mmap, │
-    │   CodonTable, coord mapping)  │ │ binary cache)│
-    └────────────┬──────────────────┘ └────┬─────────┘
-                 │                         │
-            ┌────▼─────────────────────────▼──┐
-            │          oxivep-core            │
-            │  (GenomicPosition, Consequence, │
-            │   Allele, Strand, Impact)       │
-            └─────────────────────────────────┘
-    """
-    with open(os.path.join(FIG_DIR, 'fig1_architecture.txt'), 'w') as f:
-        f.write(diagram)
-    print("Saved fig1_architecture.txt")
+def fig6_organism_throughput():
+    """Figure 6: Multi-organism throughput comparison (new figure)."""
+    data = read_csv('organism_comparison.csv')
+
+    if not HAS_MPL:
+        print("Figure 6: Organism Throughput")
+        for d in data:
+            print(f"  {d['organism']:20s} {int(d['variants']):>8,}v  {float(d['time_sec']):.2f}s  {int(d['variants_per_sec']):>8,} v/s")
+        print()
+        return
+
+    # Pick the largest-variant entry per organism for the bar chart
+    best = {}
+    for d in data:
+        org = d['organism']
+        vps = int(d['variants_per_sec'])
+        if org not in best or vps > best[org]['vps']:
+            best[org] = {
+                'vps': vps,
+                'variants': int(d['variants']),
+                'transcripts': int(d['transcripts']),
+                'time': float(d['time_sec']),
+                'assembly': d['assembly'],
+            }
+
+    # Sort by throughput
+    orgs = sorted(best.keys(), key=lambda o: best[o]['vps'])
+    vps_vals = [best[o]['vps'] for o in orgs]
+    labels = [f"{o}\n({best[o]['assembly']}, {best[o]['transcripts']:,} tr.)" for o in orgs]
+
+    # Color by genome size category
+    org_colors = []
+    for o in orgs:
+        tr = best[o]['transcripts']
+        if tr > 100000:
+            org_colors.append('#ef4444')  # red - large
+        elif tr > 30000:
+            org_colors.append('#f59e0b')  # amber - medium
+        else:
+            org_colors.append('#10b981')  # green - small
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+    bars = ax.barh(range(len(orgs)), vps_vals, color=org_colors, alpha=0.85)
+    ax.set_yticks(range(len(orgs)))
+    ax.set_yticklabels(labels, fontsize=10)
+    ax.set_xlabel('Peak throughput (variants/sec)', fontsize=12)
+    ax.set_title('Cross-Organism Annotation Throughput\n(full Ensembl genome annotations, FASTA + HGVS, median of 3 runs)', fontsize=13, fontweight='bold')
+    ax.grid(True, alpha=0.3, axis='x')
+    ax.set_xscale('log')
+    ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{x/1000:.0f}K' if x < 1e6 else f'{x/1e6:.1f}M'))
+
+    for bar, vps, org in zip(bars, vps_vals, orgs):
+        v = best[org]['variants']
+        t = best[org]['time']
+        ax.text(bar.get_width() * 1.15, bar.get_y() + bar.get_height()/2,
+                f'{vps:,.0f} v/s  ({v:,} variants in {t:.1f}s)',
+                va='center', fontsize=9, color='#333')
+
+    legend_elements = [
+        mpatches.Patch(facecolor='#10b981', alpha=0.85, label='<30K transcripts'),
+        mpatches.Patch(facecolor='#f59e0b', alpha=0.85, label='30K-100K transcripts'),
+        mpatches.Patch(facecolor='#ef4444', alpha=0.85, label='>100K transcripts'),
+    ]
+    ax.legend(handles=legend_elements, title='Genome complexity', loc='lower right', fontsize=9)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(FIG_DIR, 'fig6_organism_throughput.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(os.path.join(FIG_DIR, 'fig6_organism_throughput.pdf'), bbox_inches='tight')
+    print("Saved fig6_organism_throughput.png/pdf")
+    plt.close()
 
 
 if __name__ == '__main__':
@@ -292,4 +413,5 @@ if __name__ == '__main__':
     fig3_vep_concordance()
     fig4_consequence_distribution()
     fig5_resource_usage()
+    fig6_organism_throughput()
     print("\nDone.")
