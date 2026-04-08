@@ -334,17 +334,31 @@ pub fn run_annotate(config: AnnotateConfig) -> Result<()> {
                 sp.fetch_sequence(chrom, query_start, query_end).ok()
             });
 
-            // Run consequence prediction
-            let result = predictor.predict(
-                &vf.position,
-                &vf.ref_allele,
-                &vf.alt_alleles,
-                &overlapping,
-                ref_seq.as_deref(),
-            );
+            // Run consequence prediction — dispatch SVs to SV predictor
+            let transcript_consequences = if vf.variant_type.is_structural() {
+                oxivep_consequence::sv_predictor::predict_sv_consequences(
+                    chrom,
+                    vf.position.start,
+                    vf.position.end,
+                    vf.variant_type,
+                    &vf.alt_alleles,
+                    &overlapping,
+                    config.distance,
+                    config.distance,
+                )
+            } else {
+                let result = predictor.predict(
+                    &vf.position,
+                    &vf.ref_allele,
+                    &vf.alt_alleles,
+                    &overlapping,
+                    ref_seq.as_deref(),
+                );
+                result.transcript_consequences
+            };
 
             // Convert prediction results to VariationFeature annotations
-            for tc in &result.transcript_consequences {
+            for tc in &transcript_consequences {
                 let transcript = overlapping.iter().find(|t| t.stable_id == tc.transcript_id);
 
                 let allele_annotations: Vec<AlleleAnnotation> = tc

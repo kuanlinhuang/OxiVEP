@@ -120,7 +120,12 @@ pub fn parse_vcf_line(line: &str) -> Result<VariationFeature> {
 
     let is_non_variant = alt_str == "." || alt_str == "<NON_REF>" || alt_str == "<*>";
 
-    if !is_non_variant && is_indel {
+    // Check for symbolic/structural variant alleles
+    let has_symbolic = raw_alts
+        .iter()
+        .any(|a| a.starts_with('<') && a.ends_with('>') && *a != "<NON_REF>" && *a != "<*>");
+
+    if !is_non_variant && !has_symbolic && is_indel {
         if alt_allele_strs.len() > 1 {
             // Multi-allelic indel: strip shared first base only if ALL non-star alleles share it
             let non_star: Vec<&str> = std::iter::once(ref_allele_str.as_str())
@@ -212,8 +217,33 @@ pub fn parse_vcf_line(line: &str) -> Result<VariationFeature> {
         rest,
     };
 
+    // Parse SV-related INFO fields for structural variants
+    let (sv_end, sv_len, variant_type) = if has_symbolic {
+        let info_map = parse_info_field(info);
+        let sv_end = info_map
+            .get("END")
+            .and_then(|v| v.parse::<u64>().ok());
+        let sv_len = info_map
+            .get("SVLEN")
+            .and_then(|v| v.parse::<i64>().ok());
+        let svtype = info_map.get("SVTYPE").map(|s| s.as_str());
+
+        let vtype = classify_sv_type(svtype, &alt_allele_strs);
+        (sv_end, sv_len, vtype)
+    } else {
+        let vtype = classify_small_variant(&ref_allele, &alt_alleles);
+        (None, None, vtype)
+    };
+
+    // For SVs, use END from INFO to set the genomic end coordinate
+    let final_end = if has_symbolic {
+        sv_end.unwrap_or(end)
+    } else {
+        end
+    };
+
     Ok(VariationFeature {
-        position: GenomicPosition::new(chrom, start, end, Strand::Forward),
+        position: GenomicPosition::new(chrom, start, final_end, Strand::Forward),
         allele_string,
         ref_allele,
         alt_alleles,
@@ -223,12 +253,78 @@ pub fn parse_vcf_line(line: &str) -> Result<VariationFeature> {
         existing_variants: Vec::new(),
         minimised: false,
         most_severe_consequence: None,
-        variant_type: VariantType::Unknown,
-        sv_end: None,
-        sv_len: None,
+        variant_type,
+        sv_end,
+        sv_len,
         supplementary_annotations: Vec::new(),
         gene_annotations: Vec::new(),
     })
+}
+
+/// Parse VCF INFO field into key-value pairs.
+fn parse_info_field(info: &str) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    for pair in info.split(';') {
+        if let Some((key, value)) = pair.split_once('=') {
+            map.insert(key.to_string(), value.to_string());
+        }
+    }
+    map
+}
+
+/// Classify structural variant type from SVTYPE INFO field or symbolic allele.
+fn classify_sv_type(svtype: Option<&str>, alts: &[String]) -> VariantType {
+    // Prefer SVTYPE from INFO, fall back to parsing ALT
+    let sv = svtype.unwrap_or_else(|| {
+        alts.first()
+            .map(|a| a.trim_matches(|c| c == '<' || c == '>'))
+            .unwrap_or("")
+    });
+
+    match sv.to_uppercase().as_str() {
+        "DEL" => VariantType::CopyNumberLoss,
+        "DUP" | "DUP:TANDEM" => VariantType::TandemDuplication,
+        "INV" => VariantType::Inversion,
+        "BND" => VariantType::TranslocationBreakend,
+        "INS" => VariantType::Insertion,
+        "CNV" => VariantType::CopyNumberVariation,
+        "STR" => VariantType::ShortTandemRepeatVariation,
+        s if s.starts_with("CN") => {
+            // <CN0>, <CN1> = loss; <CN3>, <CN4> = gain
+            if let Ok(cn) = s.trim_start_matches("CN").parse::<u32>() {
+                if cn < 2 { VariantType::CopyNumberLoss }
+                else if cn > 2 { VariantType::CopyNumberGain }
+                else { VariantType::CopyNumberVariation }
+            } else {
+                VariantType::CopyNumberVariation
+            }
+        }
+        _ => VariantType::Unknown,
+    }
+}
+
+/// Classify small variant type from alleles.
+fn classify_small_variant(ref_allele: &Allele, alt_alleles: &[Allele]) -> VariantType {
+    if alt_alleles.is_empty() {
+        return VariantType::Unknown;
+    }
+    let first_alt = &alt_alleles[0];
+
+    match (ref_allele, first_alt) {
+        (Allele::Deletion, Allele::Sequence(_)) => VariantType::Insertion,
+        (Allele::Sequence(_), Allele::Deletion) => VariantType::Deletion,
+        (Allele::Sequence(r), Allele::Sequence(a)) => {
+            if r.len() == 1 && a.len() == 1 {
+                VariantType::Snv
+            } else if r.len() == a.len() {
+                VariantType::Mnv
+            } else {
+                VariantType::Indel
+            }
+        }
+        (_, Allele::Symbolic(_)) => VariantType::Unknown, // Handled by classify_sv_type
+        _ => VariantType::Unknown,
+    }
 }
 
 #[cfg(test)]
@@ -330,5 +426,65 @@ mod tests {
         let vf = parse_vcf_line(line).unwrap();
         assert_eq!(vf.position.start, 101);
         assert_eq!(vf.allele_string, "CG/-/*");
+    }
+
+    #[test]
+    fn test_parse_sv_deletion() {
+        let line = "chr1\t10000\t.\tN\t<DEL>\t.\tPASS\tSVTYPE=DEL;END=20000;SVLEN=-10000";
+        let vf = parse_vcf_line(line).unwrap();
+        assert_eq!(vf.position.start, 10000);
+        assert_eq!(vf.position.end, 20000); // Uses END from INFO
+        assert_eq!(vf.variant_type, VariantType::CopyNumberLoss);
+        assert_eq!(vf.sv_end, Some(20000));
+        assert_eq!(vf.sv_len, Some(-10000));
+        assert!(vf.alt_alleles[0].is_symbolic());
+    }
+
+    #[test]
+    fn test_parse_sv_duplication() {
+        let line = "chr2\t5000\t.\tN\t<DUP>\t.\tPASS\tSVTYPE=DUP;END=15000";
+        let vf = parse_vcf_line(line).unwrap();
+        assert_eq!(vf.variant_type, VariantType::TandemDuplication);
+        assert_eq!(vf.sv_end, Some(15000));
+        assert_eq!(vf.position.end, 15000);
+    }
+
+    #[test]
+    fn test_parse_sv_inversion() {
+        let line = "chr3\t1000\t.\tN\t<INV>\t.\tPASS\tSVTYPE=INV;END=5000";
+        let vf = parse_vcf_line(line).unwrap();
+        assert_eq!(vf.variant_type, VariantType::Inversion);
+    }
+
+    #[test]
+    fn test_parse_sv_breakend() {
+        let line = "chr1\t12345\t.\tN\t<BND>\t.\tPASS\tSVTYPE=BND";
+        let vf = parse_vcf_line(line).unwrap();
+        assert_eq!(vf.variant_type, VariantType::TranslocationBreakend);
+    }
+
+    #[test]
+    fn test_parse_sv_cnv() {
+        let line = "chr1\t100\t.\tN\t<CNV>\t.\tPASS\tSVTYPE=CNV;END=500";
+        let vf = parse_vcf_line(line).unwrap();
+        assert_eq!(vf.variant_type, VariantType::CopyNumberVariation);
+    }
+
+    #[test]
+    fn test_small_variant_type_classification() {
+        // SNV
+        let line = "chr1\t100\t.\tA\tG\t.\tPASS\t.";
+        let vf = parse_vcf_line(line).unwrap();
+        assert_eq!(vf.variant_type, VariantType::Snv);
+
+        // Deletion
+        let line = "chr1\t100\t.\tAC\tA\t.\tPASS\t.";
+        let vf = parse_vcf_line(line).unwrap();
+        assert_eq!(vf.variant_type, VariantType::Deletion);
+
+        // Insertion
+        let line = "chr1\t100\t.\tA\tACG\t.\tPASS\t.";
+        let vf = parse_vcf_line(line).unwrap();
+        assert_eq!(vf.variant_type, VariantType::Insertion);
     }
 }
