@@ -1383,10 +1383,9 @@ function formatSAValue(val) {
   if (typeof val === 'boolean') return val ? 'Yes' : 'No';
   if (Array.isArray(val)) return val.map(formatSAValue).join('; ');
   if (typeof val === 'object') {
-    // Show key fields for known SA types
     const parts = [];
     for (const [k, v] of Object.entries(val)) {
-      if (v != null && v !== '' && v !== 0) parts.push(`${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`);
+      if (v != null && v !== '') parts.push(`${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`);
     }
     return parts.join(', ') || '-';
   }

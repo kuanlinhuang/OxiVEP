@@ -63,6 +63,7 @@ fn format_csq_entry_into(
                     let _ = write!(buf, "{}/{}", n, t);
                 }
             }
+            "HGVSg" => escape_csq_str(aa.hgvsg.as_deref().unwrap_or_default(), buf),
             "HGVSc" => escape_csq_str(aa.hgvsc.as_deref().unwrap_or_default(), buf),
             "HGVSp" => escape_csq_str(aa.hgvsp.as_deref().unwrap_or_default(), buf),
             "cDNA_position" => write_position_range(aa.cdna_position, buf),
@@ -451,6 +452,9 @@ pub fn format_json(vf: &VariationFeature) -> serde_json::Value {
                     tc.insert("intron".into(),
                         serde_json::Value::String(format!("{}/{}", n, t)));
                 }
+                if let Some(ref h) = aa.hgvsg {
+                    tc.insert("hgvsg".into(), serde_json::Value::String(h.clone()));
+                }
                 if let Some(ref h) = aa.hgvsc {
                     tc.insert("hgvsc".into(), serde_json::Value::String(h.clone()));
                 }
@@ -569,6 +573,7 @@ pub fn format_nirvana_json(vf: &VariationFeature) -> serde_json::Value {
                     ));
                     tc.insert("impact".into(), serde_json::Value::String(aa.impact.as_str().to_string()));
                     if tv.canonical { tc.insert("isCanonical".into(), serde_json::Value::Bool(true)); }
+                    if let Some(ref h) = aa.hgvsg { tc.insert("hgvsg".into(), serde_json::Value::String(h.clone())); }
                     if let Some(ref h) = aa.hgvsc { tc.insert("hgvsc".into(), serde_json::Value::String(h.clone())); }
                     if let Some(ref h) = aa.hgvsp { tc.insert("hgvsp".into(), serde_json::Value::String(h.clone())); }
 
