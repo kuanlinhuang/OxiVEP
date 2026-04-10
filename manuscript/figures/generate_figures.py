@@ -265,57 +265,52 @@ def fig4_consequence_distribution():
 
 
 def fig5_resource_usage():
-    """Figure 5: Resource usage comparison."""
+    """Figure 5: Startup time scaling by genome complexity."""
     data = read_csv('resource_usage.csv')
     mem_data = {d['metric']: float(d['value']) for d in data}
 
     if not HAS_MPL:
         print("Figure 5: Resource Usage")
-        for k, v in mem_data.items():
-            unit = next((d['unit'] for d in data if d['metric'] == k), '')
-            print(f"  {k}: {v} {unit}")
+        for d in data:
+            print(f"  {d['metric']}: {d['value']} {d['unit']}")
         print()
         return
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
 
-    # Panel A: Memory comparison
-    variants_labels = ['1K', '10K', '100K']
-    oxivep_mem = [mem_data.get('peak_memory_1000v', 0),
-                  mem_data.get('peak_memory_10000v', 0),
-                  mem_data.get('peak_memory_100000v', 0)]
-    vep_mem = [500, 500, 600]
+    # Panel A: Startup time vs transcript count
+    organisms = ['Yeast\n(7K)', 'Drosophila\n(35K)', 'Arabidopsis\n(54K)', 'Mouse\n(143K)', 'Human\n(509K)']
+    transcripts = [7036, 35442, 54013, 142626, 508530]
+    startup_times = [
+        mem_data.get('startup_time_yeast_7k', 0),
+        mem_data.get('startup_time_drosophila_35k', 0),
+        mem_data.get('startup_time_arabidopsis_54k', 0),
+        mem_data.get('startup_time_mouse_143k', 0),
+        mem_data.get('startup_time_human_509k', 0),
+    ]
 
-    x = range(len(variants_labels))
-    w = 0.35
-    ax1.bar([i - w/2 for i in x], vep_mem, w, label='Ensembl VEP', color=COLORS['vep'], alpha=0.8)
-    ax1.bar([i + w/2 for i in x], oxivep_mem, w, label='OxiVEP', color=COLORS['primary'], alpha=0.8)
-    ax1.set_xlabel('Input size (variants)', fontsize=12)
-    ax1.set_ylabel('Peak memory (MB)', fontsize=12)
-    ax1.set_title('A. Memory Usage', fontsize=13, fontweight='bold')
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(variants_labels)
-    ax1.legend()
-    ax1.set_yscale('log')
+    colors = ['#10b981', '#10b981', '#f59e0b', '#ef4444', '#ef4444']
+    ax1.bar(range(len(organisms)), startup_times, color=colors, alpha=0.85)
+    ax1.set_xticks(range(len(organisms)))
+    ax1.set_xticklabels(organisms, fontsize=10)
+    ax1.set_ylabel('Startup time (seconds)', fontsize=12)
+    ax1.set_title('A. Startup Time by Genome Complexity', fontsize=13, fontweight='bold')
     ax1.grid(True, alpha=0.3, axis='y')
+    for i, (t, tr) in enumerate(zip(startup_times, transcripts)):
+        ax1.text(i, t + 0.5, f'{t:.1f}s', ha='center', fontsize=10, fontweight='bold', color='#333')
 
-    # Panel B: Binary size / startup
-    metrics = ['Binary Size\n(MB)', 'Startup + GFF3\n(ms)', 'Startup\n(cached, ms)']
-    vep_vals = [200, 10000, 10000]
-    oxi_vals = [mem_data.get('binary_size', 0),
-                mem_data.get('startup_time_gff3_chr22', 0),
-                mem_data.get('startup_time_cached', 0)]
-
-    x = range(len(metrics))
-    ax2.bar([i - w/2 for i in x], vep_vals, w, label='Ensembl VEP', color=COLORS['vep'], alpha=0.8)
-    ax2.bar([i + w/2 for i in x], oxi_vals, w, label='OxiVEP', color=COLORS['primary'], alpha=0.8)
-    ax2.set_ylabel('Value', fontsize=12)
-    ax2.set_title('B. Size & Startup', fontsize=13, fontweight='bold')
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(metrics, fontsize=10)
-    ax2.legend()
-    ax2.set_yscale('log')
+    # Panel B: Binary size comparison
+    tools = ['Ensembl VEP\n(Perl + deps)', 'OxiVEP\n(static binary)']
+    sizes = [200, mem_data.get('binary_size', 3.2)]
+    bar_colors = [COLORS['vep'], COLORS['primary']]
+    ax2.bar(range(len(tools)), sizes, color=bar_colors, alpha=0.85, width=0.5)
+    ax2.set_xticks(range(len(tools)))
+    ax2.set_xticklabels(tools, fontsize=11)
+    ax2.set_ylabel('Size (MB)', fontsize=12)
+    ax2.set_title('B. Installation Footprint', fontsize=13, fontweight='bold')
     ax2.grid(True, alpha=0.3, axis='y')
+    for i, s in enumerate(sizes):
+        ax2.text(i, s + 5, f'{s:.1f} MB', ha='center', fontsize=11, fontweight='bold', color='#333')
 
     plt.tight_layout()
     plt.savefig(os.path.join(FIG_DIR, 'fig5_resource_usage.png'), dpi=300, bbox_inches='tight')
