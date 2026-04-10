@@ -141,15 +141,32 @@ impl AnnotationContext {
         self.transcript_provider.transcript_count()
     }
 
-    /// Load a genome from GFF3 path (+ optional FASTA).
-    /// Replaces transcripts and sequence provider; keeps existing SA providers.
-    pub fn load_genome(&mut self, gff3_path: &str, fasta_path: Option<&str>) -> Result<usize> {
-        let new_ctx = Self::new(Some(gff3_path), fasta_path, None, self.distance)?;
+    /// Names of loaded supplementary annotation sources.
+    pub fn sa_source_names(&self) -> Vec<String> {
+        self.sa_providers
+            .iter()
+            .filter_map(|m| {
+                let guard = m.lock().ok()?;
+                Some(guard.name().to_string())
+            })
+            .collect()
+    }
+
+    /// Load a genome from GFF3 path (+ optional FASTA + optional SA directory).
+    /// Replaces transcripts, sequence provider, and SA providers.
+    pub fn load_genome(
+        &mut self,
+        gff3_path: &str,
+        fasta_path: Option<&str>,
+        sa_dir: Option<&str>,
+    ) -> Result<usize> {
+        let new_ctx = Self::new(Some(gff3_path), fasta_path, sa_dir, self.distance)?;
         let tr_count = new_ctx.transcript_provider.transcript_count();
         self.transcript_provider = new_ctx.transcript_provider;
         self.seq_provider = new_ctx.seq_provider;
         self.predictor = new_ctx.predictor;
         self.gff3_source = new_ctx.gff3_source;
+        self.sa_providers = new_ctx.sa_providers;
         Ok(tr_count)
     }
 

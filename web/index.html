@@ -542,7 +542,7 @@
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
       <span id="themeIcon">&#9790;</span> <span id="themeLabel">Light</span>
     </button>
-    <a href="https://github.com/kuanlinhuang/fastVEP">GitHub</a>
+    <a href="https://github.com/Huang-lab/fastVEP">GitHub</a>
   </header>
 
   <div class="container">
@@ -653,7 +653,7 @@
         <!-- Table View -->
         <div id="tabTable" class="table-wrapper">
           <table id="resultsTable">
-            <thead>
+            <thead id="resultsHead">
               <tr>
                 <th onclick="sortTable(0)">Location</th>
                 <th onclick="sortTable(1)">Allele</th>
@@ -1209,6 +1209,7 @@ let transcripts = [];
 let hasBackend = null; // null = unknown, true/false after check
 let serverTranscripts = 0; // how many transcripts are loaded on the server
 let serverGenomes = []; // available genomes from --data-dir
+let serverSaSources = []; // loaded SA sources (ClinVar, gnomAD, etc.)
 let builtinUploadedToServer = false; // track if we've uploaded the example GFF3
 
 // Detect backend on load, fetch available genomes, ensure transcripts are loaded
@@ -1219,6 +1220,7 @@ async function checkBackend() {
       const j = await r.json();
       hasBackend = j.backend === true;
       serverTranscripts = j.transcripts || 0;
+      serverSaSources = j.sa_sources || [];
     } else {
       hasBackend = false;
     }
@@ -1244,7 +1246,8 @@ async function checkBackend() {
     for (const g of serverGenomes) {
       const opt = document.createElement('option');
       opt.value = 'server:' + g.name;
-      opt.textContent = g.name + (g.has_fasta ? ' (+ FASTA)' : '');
+      const tags = [g.has_fasta ? 'FASTA' : null, g.has_sa ? 'SA' : null].filter(Boolean);
+      opt.textContent = g.name + (tags.length ? ' (' + tags.join(' + ') + ')' : '');
       // Insert before "Upload custom" option
       sel.insertBefore(opt, sel.querySelector('option[value="upload"]'));
     }
@@ -1285,8 +1288,12 @@ async function uploadBuiltinToServer() {
 function updateGffInfo() {
   const info = document.getElementById('gffInfo');
   const source = document.getElementById('gffSource').value;
-  if (source === 'builtin' && hasBackend && builtinUploadedToServer) {
-    info.textContent = `Built-in loaded on server (${serverTranscripts} transcripts)`;
+  if (hasBackend && (builtinUploadedToServer || serverTranscripts > 0)) {
+    let text = `${serverTranscripts} transcripts`;
+    if (serverSaSources.length > 0) {
+      text += ` | SA: ${serverSaSources.join(', ')}`;
+    }
+    info.textContent = text;
   }
 }
 
@@ -1346,6 +1353,47 @@ async function annotateBackend(vcfText) {
 }
 
 // Convert Ensembl-style JSON from the Rust backend to our internal result format
+// Known SA keys to extract from server JSON
+const SA_KEYS = ['clinvar', 'gnomad', 'dbsnp', 'cosmic', 'onekg', 'topmed', 'mitomap',
+  'phylop', 'gerp', 'dann', 'revel', 'spliceai', 'primateai', 'dbnsfp', 'sift', 'polyphen'];
+
+function extractSA(obj) {
+  const sa = {};
+  for (const key of SA_KEYS) {
+    if (obj[key] !== undefined) sa[key] = obj[key];
+  }
+  // Also grab any unknown keys that look like SA data (objects/arrays, not standard VEP fields)
+  const stdKeys = new Set(['gene_id','gene_symbol','gene_symbol_source','transcript_id','biotype',
+    'consequence_terms','impact','variant_allele','strand','canonical','cdna_start','cdna_end',
+    'cds_start','cds_end','protein_start','protein_end','amino_acids','codons','exon','intron',
+    'hgvsc','hgvsp','hgvsg','distance','hgvs_offset',
+    'seq_region_name','start','end','allele_string','most_severe_consequence',
+    'transcript_consequences','id','variant_type','sv_end','sv_len','genes']);
+  for (const [k, v] of Object.entries(obj)) {
+    if (!stdKeys.has(k) && v != null && typeof v === 'object') {
+      sa[k] = v;
+    }
+  }
+  return Object.keys(sa).length > 0 ? sa : null;
+}
+
+function formatSAValue(val) {
+  if (val === null || val === undefined) return '-';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+  if (Array.isArray(val)) return val.map(formatSAValue).join('; ');
+  if (typeof val === 'object') {
+    // Show key fields for known SA types
+    const parts = [];
+    for (const [k, v] of Object.entries(val)) {
+      if (v != null && v !== '' && v !== 0) parts.push(`${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`);
+    }
+    return parts.join(', ') || '-';
+  }
+  return String(val);
+}
+
 function convertServerResults(results) {
   const out = [];
   for (const vf of results) {
@@ -1353,15 +1401,16 @@ function convertServerResults(results) {
     const start = vf.start || 0;
     const end = vf.end || start;
     const variantBase = { chrom, start, end, origPos: start, origRef: '', origAlt: '' };
-    // Parse allele_string for ref/alt
     if (vf.allele_string) {
       const parts = vf.allele_string.split('/');
       variantBase.origRef = parts[0] || '';
       variantBase.origAlt = parts.slice(1).join(',');
     }
+    // Variant-level SA (e.g., positional scores like PhyloP)
+    const variantSA = extractSA(vf);
+
     const tcs = vf.transcript_consequences || [];
     if (tcs.length === 0) {
-      // Intergenic
       out.push({
         variant: variantBase,
         allele: vf.allele_string?.split('/')?.[1] || '-',
@@ -1371,9 +1420,13 @@ function convertServerResults(results) {
         exon: null, intron: null, cdna: null, cds: null, protein: null,
         aa: null, codons: null, dist: null,
         hgvsc: null, hgvsp: null, hgvsg: null,
+        sa: variantSA,
       });
     }
     for (const tc of tcs) {
+      // Merge variant-level + per-allele SA
+      const alleleSA = extractSA(tc);
+      const mergedSA = { ...(variantSA || {}), ...(alleleSA || {}) };
       out.push({
         variant: variantBase,
         allele: tc.variant_allele || '-',
@@ -1397,6 +1450,7 @@ function convertServerResults(results) {
         hgvsc: tc.hgvsc || null,
         hgvsp: tc.hgvsp || null,
         hgvsg: tc.hgvsg || null,
+        sa: Object.keys(mergedSA).length > 0 ? mergedSA : null,
       });
     }
   }
@@ -1465,9 +1519,34 @@ function showResults(nVariants, nAnnotations, timeMs) {
 
 function renderTable() {
   const tbody = document.getElementById('resultsBody');
+  const thead = document.getElementById('resultsHead');
   tbody.innerHTML = '';
   const search = document.getElementById('searchInput').value.toLowerCase();
   const impFilter = document.getElementById('impactFilter').value;
+
+  // Detect which SA columns are present in the results
+  const saKeys = new Set();
+  for (const r of allResults) {
+    if (r.sa) for (const k of Object.keys(r.sa)) saKeys.add(k);
+  }
+  const saColumns = [...saKeys].sort();
+
+  // Update header row with SA columns
+  if (thead) {
+    // Remove old dynamic SA columns (marked with data-sa)
+    thead.querySelectorAll('th[data-sa]').forEach(th => th.remove());
+    // Append SA column headers before Strand column (last column)
+    const headerRow = thead.querySelector('tr');
+    const strandTh = headerRow.lastElementChild;
+    for (const key of saColumns) {
+      const th = document.createElement('th');
+      th.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+      th.setAttribute('data-sa', key);
+      th.style.cursor = 'pointer';
+      headerRow.insertBefore(th, strandTh);
+    }
+  }
+
   for (const r of allResults) {
     if (impFilter && r.impact !== impFilter) continue;
     const text = [r.variant.chrom, r.transcript?.gene?.symbol, r.transcript?.id, ...r.consequences].join(' ').toLowerCase();
@@ -1475,6 +1554,13 @@ function renderTable() {
     const loc = r.variant.start === r.variant.end ? `${r.variant.chrom}:${r.variant.start}` : `${r.variant.chrom}:${r.variant.start}-${r.variant.end}`;
     const tr = document.createElement('tr');
     const strandStr = r.transcript?.strand === 1 ? '+' : r.transcript?.strand === -1 ? '-' : '-';
+
+    // SA column values
+    const saCells = saColumns.map(key => {
+      const val = r.sa?.[key];
+      return `<td title="${key}">${val != null ? formatSAValue(val) : '-'}</td>`;
+    }).join('');
+
     tr.innerHTML = `
       <td>${loc}</td>
       <td><code>${r.allele}</code></td>
@@ -1496,6 +1582,7 @@ function renderTable() {
       <td>${r.aa||'-'}</td>
       <td>${r.codons||'-'}</td>
       <td>${r.dist||'-'}</td>
+      ${saCells}
       <td>${strandStr}</td>`;
     tbody.appendChild(tr);
   }
@@ -1787,7 +1874,12 @@ async function loadServerGenome(name) {
       info.textContent = 'Error: ' + data.error;
     } else {
       serverTranscripts = data.transcripts || 0;
-      info.textContent = `${name}: ${data.transcripts} transcripts (${data.time_ms}ms)`;
+      serverSaSources = data.sa_sources || [];
+      let text = `${name}: ${data.transcripts} transcripts (${data.time_ms}ms)`;
+      if (serverSaSources.length > 0) {
+        text += ` | SA: ${serverSaSources.join(', ')}`;
+      }
+      info.textContent = text;
     }
   } catch (e) {
     info.textContent = 'Failed to load: ' + e.message;

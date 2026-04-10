@@ -47,8 +47,8 @@ impl Osa2Reader {
 
         // Read metadata
         let metadata: Osa2Metadata = {
-            let mut entry = archive.by_name("oxisa/metadata.json")
-                .context("Missing oxisa/metadata.json")?;
+            let mut entry = archive.by_name("fastsa/metadata.json")
+                .context("Missing fastsa/metadata.json")?;
             let mut buf = String::new();
             entry.read_to_string(&mut buf)?;
             serde_json::from_str(&buf)?
@@ -56,8 +56,8 @@ impl Osa2Reader {
 
         // Read field config
         let fields: Vec<Field> = {
-            let mut entry = archive.by_name("oxisa/config.json")
-                .context("Missing oxisa/config.json")?;
+            let mut entry = archive.by_name("fastsa/config.json")
+                .context("Missing fastsa/config.json")?;
             let mut buf = String::new();
             entry.read_to_string(&mut buf)?;
             serde_json::from_str(&buf)?
@@ -67,7 +67,7 @@ impl Osa2Reader {
         let mut string_tables: Vec<Vec<String>> = fields.iter().map(|_| Vec::new()).collect();
         for (i, field) in fields.iter().enumerate() {
             if field.ftype == FieldType::Categorical {
-                let name = format!("oxisa/strings/{}.txt", field.alias);
+                let name = format!("fastsa/strings/{}.txt", field.alias);
                 if let Ok(mut entry) = archive.by_name(&name) {
                     let mut buf = String::new();
                     entry.read_to_string(&mut buf)?;
@@ -107,7 +107,7 @@ impl Osa2Reader {
 
         let file = File::open(&self.zip_path)?;
         let mut archive = zip::ZipArchive::new(file)?;
-        let prefix = format!("oxisa/{}/{}/", chrom, chunk_id);
+        let prefix = format!("fastsa/{}/{}/", chrom, chunk_id);
 
         // Read var32 keys
         let var32s = {

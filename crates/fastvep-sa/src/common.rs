@@ -1,13 +1,13 @@
 //! Constants and common types for the fastSA binary annotation format.
 
 /// Magic bytes for position/allele-level annotation files (.osa).
-pub const OSA_MAGIC: &[u8; 8] = b"OXISA_01";
+pub const OSA_MAGIC: &[u8; 8] = b"FSTSA_01";
 
 /// Magic bytes for interval-level annotation files (.osi).
-pub const OSI_MAGIC: &[u8; 8] = b"OXISI_01";
+pub const OSI_MAGIC: &[u8; 8] = b"FSTSI_01";
 
 /// Magic bytes for gene-level annotation files (.oga).
-pub const OGA_MAGIC: &[u8; 8] = b"OXIGA_01";
+pub const OGA_MAGIC: &[u8; 8] = b"FSTGA_01";
 
 /// Current schema version. Bump when the binary format changes.
 pub const SCHEMA_VERSION: u16 = 1;

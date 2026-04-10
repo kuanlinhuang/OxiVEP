@@ -4,6 +4,8 @@ A high-performance Variant Effect Predictor written in Rust. fastVEP predicts th
 
 fastVEP is inspired by and aims to be compatible with [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html) and [Illumina Nirvana](https://github.com/Illumina/Nirvana), while delivering significantly better performance through Rust's zero-cost abstractions and native parallelism.
 
+**Try it now:** A hosted web server is available at [fastVEP.org](https://fastVEP.org) — paste VCF data and get annotated results instantly, no installation required.
+
 ## Features
 
 - **Variant Consequence Prediction** — Classifies variants using 49 [Sequence Ontology](http://www.sequenceontology.org/) terms (missense, frameshift, splice donor, copy_number_change, transcript_ablation, etc.)
@@ -33,7 +35,7 @@ source "$HOME/.cargo/env"
 ### 2. Build and install fastVEP
 
 ```bash
-git clone https://github.com/kuanlinhuang/fastVEP.git
+git clone https://github.com/Huang-lab/fastVEP.git
 cd fastVEP
 
 # Build and install both binaries to ~/.cargo/bin/
@@ -188,25 +190,57 @@ All flags also accept environment variables (`FASTVEP_GFF3`, `FASTVEP_FASTA`, `F
 
 ### Multi-organism setup
 
-To serve multiple genomes from the web interface, organize data into subdirectories and use `--data-dir`:
+To serve multiple genomes from the web interface, organize data into subdirectories and use `--data-dir`. Each subdirectory is one genome — the server auto-detects GFF3, FASTA, and SA files inside.
+
+**Directory layout:**
+
+```
+genomes/
+  human_grch38/
+    Homo_sapiens.GRCh38.115.gff3       # gene models (required)
+    Homo_sapiens.GRCh38.dna.primary_assembly.fa   # reference (optional, for HGVS)
+    Homo_sapiens.GRCh38.dna.primary_assembly.fa.fai
+    sa/                                 # supplementary annotations (optional)
+      clinvar.osa2
+      gnomad.osa2
+      dbsnp.osa2
+  mouse_grcm39/
+    Mus_musculus.GRCm39.115.gff3
+    mouse.fa
+    mouse.fa.fai
+  zebrafish/
+    Danio_rerio.GRCz11.115.gff3
+```
+
+**Setup:**
 
 ```bash
-mkdir -p genomes/human_grch38 genomes/mouse_grcm39 genomes/zebrafish
+mkdir -p genomes/human_grch38/sa genomes/mouse_grcm39 genomes/zebrafish
 
-# Human
+# Human: GFF3 + FASTA + SA databases
 cp data/Homo_sapiens.GRCh38.115.gff3 genomes/human_grch38/
 cp data/Homo_sapiens.GRCh38.dna.primary_assembly.fa* genomes/human_grch38/
+cp sa_databases/*.osa2 genomes/human_grch38/sa/   # ClinVar, gnomAD, etc.
 
 # Mouse
-wget -P genomes/mouse_grcm39/ https://ftp.ensembl.org/pub/release-115/gff3/mus_musculus/Mus_musculus.GRCm39.115.gff3.gz
-gunzip genomes/mouse_grcm39/Mus_musculus.GRCm39.115.gff3.gz
+wget -O- https://ftp.ensembl.org/pub/release-115/gff3/mus_musculus/Mus_musculus.GRCm39.115.gff3.gz | gunzip > genomes/mouse_grcm39/Mus_musculus.GRCm39.115.gff3
 
 # Zebrafish
-wget -P genomes/zebrafish/ https://ftp.ensembl.org/pub/release-115/gff3/danio_rerio/Danio_rerio.GRCz11.115.gff3.gz
-gunzip genomes/zebrafish/Danio_rerio.GRCz11.115.gff3.gz
+wget -O- https://ftp.ensembl.org/pub/release-115/gff3/danio_rerio/Danio_rerio.GRCz11.115.gff3.gz | gunzip > genomes/zebrafish/Danio_rerio.GRCz11.115.gff3
+```
 
-# Run — users can switch genomes from the dropdown in the web UI
-fastvep-web --data-dir genomes/ --sa-dir sa_databases/
+**Run:**
+
+```bash
+fastvep-web --data-dir genomes/
+```
+
+Users can switch between organisms from the dropdown in the web UI. When a genome has a `sa/` subdirectory, its SA databases are automatically loaded. The dropdown shows "(FASTA + SA)" labels for genomes that have these resources.
+
+You can also pass a global `--sa-dir` that applies when a genome's subdirectory doesn't have its own `sa/` folder:
+
+```bash
+fastvep-web --data-dir genomes/ --sa-dir shared_sa_databases/
 ```
 
 fastVEP works with any organism — just provide the matching GFF3 (and optionally FASTA for HGVS).

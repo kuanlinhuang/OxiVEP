@@ -71,17 +71,17 @@ impl Osa2Writer {
             .compression_method(zip::CompressionMethod::Deflated);
 
         // Write metadata
-        zip.start_file("oxisa/metadata.json", options)?;
+        zip.start_file("fastsa/metadata.json", options)?;
         serde_json::to_writer_pretty(&mut zip, &self.metadata)?;
 
         // Write field config
-        zip.start_file("oxisa/config.json", options)?;
+        zip.start_file("fastsa/config.json", options)?;
         serde_json::to_writer_pretty(&mut zip, &self.fields)?;
 
         // Write string tables
         for (i, field) in self.fields.iter().enumerate() {
             if field.ftype == FieldType::Categorical && !self.string_tables[i].is_empty() {
-                let path = format!("oxisa/strings/{}.txt", field.alias);
+                let path = format!("fastsa/strings/{}.txt", field.alias);
                 zip.start_file(path, options)?;
                 for s in &self.string_tables[i] {
                     writeln!(zip, "{}", s)?;
@@ -160,7 +160,7 @@ impl Osa2Writer {
         let delta_var32s = delta_encode(&var32s);
 
         // Write var32 keys
-        let prefix = format!("oxisa/{}/{}/", chrom, chunk_id);
+        let prefix = format!("fastsa/{}/{}/", chrom, chunk_id);
         zip.start_file(format!("{}var32.bin", prefix), options)?;
         write_u32_array(zip, &delta_var32s)?;
 

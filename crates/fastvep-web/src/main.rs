@@ -77,13 +77,18 @@ async fn main() -> anyhow::Result<()> {
     )?;
 
     let data_dir = cli.data_dir.map(PathBuf::from);
+    let sa_dir = cli.sa_dir.as_ref().map(PathBuf::from);
     if let Some(ref dir) = data_dir {
         tracing::info!("Data directory: {}", dir.display());
+    }
+    if let Some(ref dir) = sa_dir {
+        tracing::info!("SA directory: {}", dir.display());
     }
 
     let state: AppState = Arc::new(SharedState {
         ctx: RwLock::new(ctx),
         data_dir,
+        sa_dir,
     });
 
     let app = Router::new()

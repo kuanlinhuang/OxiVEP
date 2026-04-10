@@ -14,6 +14,7 @@ use crate::errors::AppError;
 pub struct SharedState {
     pub ctx: RwLock<AnnotationContext>,
     pub data_dir: Option<PathBuf>,
+    pub sa_dir: Option<PathBuf>,
 }
 
 pub type AppState = Arc<SharedState>;
@@ -27,15 +28,16 @@ pub async fn index_html() -> impl IntoResponse {
     )
 }
 
-/// Enhanced status: reports transcript/genome state so the SPA can decide
-/// whether to use server-side annotation or upload example GFF3.
+/// Enhanced status: reports transcript/genome/SA state so the SPA can
+/// decide whether to use server-side annotation or upload example GFF3.
 pub async fn status(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let (transcripts, gff3_source, has_fasta) = {
+    let (transcripts, gff3_source, has_fasta, sa_sources) = {
         let guard = state.ctx.read().unwrap();
         (
             guard.transcript_count(),
             guard.gff3_source.clone(),
             guard.seq_provider.is_some(),
+            guard.sa_source_names(),
         )
     };
     Json(serde_json::json!({
@@ -44,6 +46,7 @@ pub async fn status(State(state): State<AppState>) -> Json<serde_json::Value> {
         "transcripts": transcripts,
         "gff3_source": gff3_source,
         "has_fasta": has_fasta,
+        "sa_sources": sa_sources,
     }))
 }
 
@@ -67,10 +70,20 @@ pub async fn list_genomes(State(state): State<AppState>) -> Json<serde_json::Val
                     .unwrap_or_default();
                 let gff3 = find_file_with_ext(&path, &["gff3", "gff3.gz", "fastvep.cache"]);
                 let fasta = find_file_with_ext(&path, &["fa", "fasta", "fa.gz", "fasta.gz"]);
+                let has_sa = path.join("sa").is_dir()
+                    && std::fs::read_dir(path.join("sa"))
+                        .map(|rd| {
+                            rd.flatten().any(|e| {
+                                let n = e.file_name().to_string_lossy().to_string();
+                                n.ends_with(".osa") || n.ends_with(".osa2")
+                            })
+                        })
+                        .unwrap_or(false);
                 if gff3.is_some() {
                     genomes.push(serde_json::json!({
                         "name": name,
                         "has_fasta": fasta.is_some(),
+                        "has_sa": has_sa,
                     }));
                 }
             }
@@ -129,11 +142,21 @@ pub async fn load_genome(
     };
 
     let (gff3_path, fasta_path) = resolve_genome_paths(data_dir, &req.name)?;
+
+    // Check for per-genome SA directory (data_dir/<name>/sa/)
+    let genome_sa_dir = data_dir.join(&req.name).join("sa");
+    let sa_dir = if genome_sa_dir.is_dir() {
+        Some(genome_sa_dir)
+    } else {
+        // Fall back to global --sa-dir
+        state.sa_dir.clone()
+    };
+
     let name = req.name.clone();
     let ctx = Arc::clone(&state);
 
     let start = Instant::now();
-    let transcripts = tokio::task::spawn_blocking(move || {
+    let (transcripts, sa_sources) = tokio::task::spawn_blocking(move || {
         let mut guard = ctx
             .ctx
             .write()
@@ -141,7 +164,11 @@ pub async fn load_genome(
         guard.load_genome(
             gff3_path.to_str().unwrap(),
             fasta_path.as_ref().map(|p| p.to_str().unwrap()),
-        )
+            sa_dir.as_ref().map(|p| p.to_str().unwrap()),
+        )?;
+        let tr_count = guard.transcript_count();
+        let sa_names = guard.sa_source_names();
+        Ok::<_, anyhow::Error>((tr_count, sa_names))
     })
     .await??;
 
@@ -149,6 +176,7 @@ pub async fn load_genome(
     Ok(Json(serde_json::json!({
         "name": name,
         "transcripts": transcripts,
+        "sa_sources": sa_sources,
         "time_ms": time_ms,
     })))
 }
