@@ -3,10 +3,11 @@
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
 1	65565	rs_start_lost	A	G	50	PASS	DP=50
 1	65568	rs_missense_1	A	G	30	PASS	DP=50
+1	69134	rs781394307	A	G	30	PASS	DP=50
+1	69241	rs_missense_cv	C	T	30	PASS	DP=50
 1	69080	rs_missense_2	C	T	30	PASS	DP=50
 1	69080	rs_frameshift_del	CA	C	50	PASS	DP=50
 1	69080	rs_inframe_del	CACG	C	50	PASS	DP=50
-1	69080	rs_inframe_ins	C	CTTT	30	PASS	DP=50
 1	65425	rs_5utr	A	G	30	PASS	DP=50
 1	70100	rs_3utr	C	T	30	PASS	DP=50
 1	65574	rs_splice_donor	G	A	30	PASS	DP=50
