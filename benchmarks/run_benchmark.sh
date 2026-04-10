@@ -24,9 +24,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 OXIVEP="$PROJECT_DIR/target/release/oxivep"
 OUTPUT_DIR="$SCRIPT_DIR/output"
-TEST_DATA="$PROJECT_DIR/test_data"
-ORG_DATA="$TEST_DATA/organisms"
-VCF_DATA="$TEST_DATA/benchmark_vcfs"
+ORG_DATA="$PROJECT_DIR/test_data/organisms"
+HUMAN_DIR="$ORG_DATA/human"
 RUNS=3
 
 RED='\033[0;31m'
@@ -175,61 +174,45 @@ add_benchmark() {
 run_benchmarks() {
     mkdir -p "$OUTPUT_DIR"
 
-    # ── Human (GRCh38) ──
-    local HUMAN_GFF3="$TEST_DATA/Homo_sapiens.GRCh38.115.gff3"
-    local HUMAN_FA="$TEST_DATA/Homo_sapiens.GRCh38.dna.primary_assembly.fa"
-
-    if [[ -f "$HUMAN_GFF3" ]]; then
-        print_section "Pre-warming: Human full genome (GRCh38)"
-        warm_cache "$HUMAN_GFF3" "$HUMAN_FA"
-
-        add_benchmark "human_100k"    "$VCF_DATA/human_100k.vcf"       "$HUMAN_GFF3" "$HUMAN_FA" "Human"
-        add_benchmark "human_500k"    "$VCF_DATA/human_500k.vcf"       "$HUMAN_GFF3" "$HUMAN_FA" "Human"
-        add_benchmark "human_giab_full" "$VCF_DATA/human_giab_full.vcf" "$HUMAN_GFF3" "$HUMAN_FA" "Human"
-        # Fallback: use tracked 100k chr22 VCF if no GIAB data
-        add_benchmark "human_chr22_100k" "$SCRIPT_DIR/real_chr22_100k.vcf" "$HUMAN_GFF3" "$HUMAN_FA" "Human"
-    fi
-
-    # ── Mouse (GRCm39) ──
-    if [[ -f "$ORG_DATA/mouse.gff3" ]]; then
-        print_section "Pre-warming: Mouse (GRCm39)"
-        warm_cache "$ORG_DATA/mouse.gff3" "$ORG_DATA/mouse.fa"
-
-        add_benchmark "mouse_100k" "$VCF_DATA/mouse_100k.vcf" "$ORG_DATA/mouse.gff3" "$ORG_DATA/mouse.fa" "Mouse"
-        add_benchmark "mouse_500k" "$VCF_DATA/mouse_500k.vcf" "$ORG_DATA/mouse.gff3" "$ORG_DATA/mouse.fa" "Mouse"
-    fi
-
-    # ── Yeast (R64) ──
+    # ── Yeast (R64, full genome) ──
     if [[ -f "$ORG_DATA/yeast.gff3" ]]; then
         print_section "Pre-warming: Yeast (R64)"
         warm_cache "$ORG_DATA/yeast.gff3" "$ORG_DATA/yeast.fa"
-
-        add_benchmark "yeast_100k" "$VCF_DATA/yeast_100k.vcf" "$ORG_DATA/yeast.gff3" "$ORG_DATA/yeast.fa" "Yeast"
+        add_benchmark "yeast_260k" "$ORG_DATA/yeast_ensembl.vcf" "$ORG_DATA/yeast.gff3" "$ORG_DATA/yeast.fa" "Yeast"
     fi
 
-    # ── C. elegans (WBcel235) ──
-    if [[ -f "$ORG_DATA/elegans.gff3" ]]; then
-        print_section "Pre-warming: C. elegans (WBcel235)"
-        warm_cache "$ORG_DATA/elegans.gff3" "$ORG_DATA/elegans.fa"
-
-        add_benchmark "elegans_100k" "$VCF_DATA/elegans_100k.vcf" "$ORG_DATA/elegans.gff3" "$ORG_DATA/elegans.fa" "C.elegans"
-    fi
-
-    # ── Drosophila (BDGP6) ──
+    # ── Drosophila (BDGP6, full genome) ──
     if [[ -f "$ORG_DATA/drosophila.gff3" ]]; then
         print_section "Pre-warming: Drosophila (BDGP6)"
         warm_cache "$ORG_DATA/drosophila.gff3" "$ORG_DATA/drosophila.fa"
-
-        add_benchmark "drosophila_100k" "$VCF_DATA/drosophila_100k.vcf" "$ORG_DATA/drosophila.gff3" "$ORG_DATA/drosophila.fa" "Drosophila"
+        add_benchmark "drosophila_100k" "$ORG_DATA/drosophila_100k.vcf" "$ORG_DATA/drosophila.gff3" "$ORG_DATA/drosophila.fa" "Drosophila"
     fi
 
-    # ── Arabidopsis (TAIR10) ──
+    # ── Arabidopsis (TAIR10, full genome) ──
     if [[ -f "$ORG_DATA/arabidopsis.gff3" ]]; then
         print_section "Pre-warming: Arabidopsis (TAIR10)"
         warm_cache "$ORG_DATA/arabidopsis.gff3" "$ORG_DATA/arabidopsis.fa"
+        add_benchmark "arabidopsis_100k" "$ORG_DATA/arabidopsis_100k.vcf" "$ORG_DATA/arabidopsis.gff3" "$ORG_DATA/arabidopsis.fa" "Arabidopsis"
+        add_benchmark "arabidopsis_500k" "$ORG_DATA/arabidopsis_500k.vcf" "$ORG_DATA/arabidopsis.gff3" "$ORG_DATA/arabidopsis.fa" "Arabidopsis"
+    fi
 
-        add_benchmark "arabidopsis_100k" "$VCF_DATA/arabidopsis_100k.vcf" "$ORG_DATA/arabidopsis.gff3" "$ORG_DATA/arabidopsis.fa" "Arabidopsis"
-        add_benchmark "arabidopsis_500k" "$VCF_DATA/arabidopsis_500k.vcf" "$ORG_DATA/arabidopsis.gff3" "$ORG_DATA/arabidopsis.fa" "Arabidopsis"
+    # ── Mouse (GRCm39, full genome) ──
+    if [[ -f "$ORG_DATA/mouse.gff3" ]]; then
+        print_section "Pre-warming: Mouse (GRCm39)"
+        warm_cache "$ORG_DATA/mouse.gff3" "$ORG_DATA/mouse.fa"
+        add_benchmark "mouse_100k" "$ORG_DATA/mouse_100k.vcf" "$ORG_DATA/mouse.gff3" "$ORG_DATA/mouse.fa" "Mouse"
+        add_benchmark "mouse_500k" "$ORG_DATA/mouse_500k.vcf" "$ORG_DATA/mouse.gff3" "$ORG_DATA/mouse.fa" "Mouse"
+    fi
+
+    # ── Human (GRCh38, full genome) ──
+    local HUMAN_GFF3="$HUMAN_DIR/Homo_sapiens.GRCh38.115.gff3"
+    local HUMAN_FA="$HUMAN_DIR/Homo_sapiens.GRCh38.dna.primary_assembly.fa"
+    if [[ -f "$HUMAN_GFF3" ]]; then
+        print_section "Pre-warming: Human full genome (GRCh38)"
+        warm_cache "$HUMAN_GFF3" "$HUMAN_FA"
+        add_benchmark "human_hg002_100k" "$HUMAN_DIR/human_hg002_100k.vcf" "$HUMAN_GFF3" "$HUMAN_FA" "Human"
+        add_benchmark "human_hg002_500k" "$HUMAN_DIR/human_hg002_500k.vcf" "$HUMAN_GFF3" "$HUMAN_FA" "Human"
+        add_benchmark "human_hg002_full" "$HUMAN_DIR/human_giab_hg002_full.vcf" "$HUMAN_GFF3" "$HUMAN_FA" "Human"
     fi
 
     # ═══════════════════════════════════════════════════════════════
