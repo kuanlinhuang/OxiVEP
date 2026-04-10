@@ -460,6 +460,12 @@ pub fn format_json(vf: &VariationFeature) -> serde_json::Value {
                 if let Some(d) = aa.distance {
                     tc.insert("distance".into(), serde_json::Value::Number(d.into()));
                 }
+                // Per-allele supplementary annotations (ClinVar, gnomAD, etc.)
+                for (key, json_str) in &aa.supplementary {
+                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                        tc.insert(key.clone(), val);
+                    }
+                }
                 serde_json::Value::Object(tc)
             })
         })

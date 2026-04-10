@@ -1786,15 +1786,23 @@ fn prescan_vcf_regions(vcf_path: &str, distance: u64) -> Result<Vec<(String, u64
 
 /// Standard chromosome ordering for SA builds.
 fn standard_chrom_map() -> (Vec<String>, std::collections::HashMap<String, u16>) {
+    // Support both "chr1" and "1" naming conventions
     let chroms: Vec<String> = (1..=22)
-        .map(|i| format!("chr{}", i))
-        .chain(["chrX", "chrY", "chrM"].iter().map(|s| s.to_string()))
+        .map(|i| i.to_string())
+        .chain(["X", "Y", "MT"].iter().map(|s| s.to_string()))
         .collect();
-    let map: std::collections::HashMap<String, u16> = chroms
+    let mut map: std::collections::HashMap<String, u16> = chroms
         .iter()
         .enumerate()
         .map(|(i, c)| (c.clone(), i as u16))
         .collect();
+    // Also map "chr" prefixed names to the same indices
+    for (i, c) in chroms.iter().enumerate() {
+        map.insert(format!("chr{}", c), i as u16);
+    }
+    // Common aliases
+    map.insert("chrM".to_string(), *map.get("MT").unwrap_or(&24));
+    map.insert("M".to_string(), *map.get("MT").unwrap_or(&24));
     (chroms, map)
 }
 
@@ -1956,8 +1964,8 @@ pub fn run_sa_build(source: &str, input: &str, output: &str, assembly: &str) -> 
 
     let file = File::open(input)
         .with_context(|| format!("Opening input file: {}", input))?;
-    let reader: Box<dyn io::Read> = if input.ends_with(".gz") {
-        Box::new(flate2::read::GzDecoder::new(file))
+    let reader: Box<dyn io::Read> = if input.ends_with(".gz") || input.ends_with(".bgz") {
+        Box::new(flate2::read::MultiGzDecoder::new(file))
     } else {
         Box::new(file)
     };

@@ -110,7 +110,6 @@ impl SaReader {
     }
 
     fn find_match(&self, entries: &[BlockEntry], position: u32, ref_allele: &str, alt_allele: &str) -> Option<String> {
-        // Use binary search by position (entries are sorted after Phase 1 block changes)
         let allele_ref = if self.metadata.match_by_allele { ref_allele } else { "" };
         let allele_alt = if self.metadata.match_by_allele { alt_allele } else { "" };
 
@@ -160,7 +159,6 @@ impl AnnotationProvider for SaReader {
         let cache = unsafe { &mut *self.preloaded.get() };
         cache.clear();
 
-        // Find all blocks that cover any of the positions
         let min_pos = *positions.iter().min().unwrap() as u32;
         let max_pos = *positions.iter().max().unwrap() as u32;
 
@@ -168,7 +166,6 @@ impl AnnotationProvider for SaReader {
 
         for block_ref in block_refs {
             let entries = self.read_block(block_ref.file_offset, block_ref.compressed_len)?;
-            // Group entries by position for fast lookup (using chrom index, not String)
             for entry in entries {
                 cache
                     .entry((chrom_idx, entry.position))
