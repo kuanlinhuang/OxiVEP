@@ -121,54 +121,47 @@ def fig1_architecture():
     plt.close()
 
 
-def fig2_throughput_comparison():
-    """Figure 2: OxiVEP vs Ensembl VEP throughput comparison."""
+def fig2_throughput_scaling():
+    """Figure 2: OxiVEP throughput scaling on GIAB HG002 full-genome data."""
     data = read_csv('scaling.csv')
     variants = [int(d['variants']) for d in data]
-    oxi_vps = [float(d['oxivep_vps']) for d in data]
-    vep_vps = [float(d['vep_vps']) for d in data]
+    oxi_vps = [int(d['oxivep_vps']) for d in data]
     oxi_time = [float(d['oxivep_time_sec']) for d in data]
-    vep_time = [float(d['vep_time_sec']) for d in data]
 
     if not HAS_MPL:
-        print("Figure 2: Throughput Comparison")
-        for v, ot, ovps, vt, vvps in zip(variants, oxi_time, oxi_vps, vep_time, vep_vps):
-            print(f"  {v:>8,}v: OxiVEP {ot:.2f}s ({ovps:,.0f} v/s)  VEP {vt:.1f}s ({vvps:,.0f} v/s)  {ovps/vvps:.0f}x")
+        print("Figure 2: Throughput Scaling")
+        for v, ot, ovps in zip(variants, oxi_time, oxi_vps):
+            print(f"  {v:>10,}v: {ot:.1f}s ({ovps:,.0f} v/s)")
         print()
         return
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
 
     # Panel A: Wall-clock time
-    ax1.plot(variants, oxi_time, 'o-', color=COLORS['primary'], linewidth=2.5, markersize=9, label='OxiVEP', zorder=3)
-    ax1.plot(variants, vep_time, 's-', color=COLORS['vep'], linewidth=2.5, markersize=9, label='Ensembl VEP v115', zorder=3)
+    ax1.plot(variants, oxi_time, 'o-', color=COLORS['primary'], linewidth=2.5, markersize=10, zorder=3)
     ax1.set_xscale('log')
-    ax1.set_yscale('log')
-    ax1.set_xlabel('Number of variants', fontsize=12)
+    ax1.set_xlabel('Number of variants (GIAB HG002)', fontsize=12)
     ax1.set_ylabel('Wall-clock time (seconds)', fontsize=12)
-    ax1.set_title('A. Annotation Time', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=11)
+    ax1.set_title('A. Annotation Time\n(508,530 transcripts, full GRCh38)', fontsize=13, fontweight='bold')
     ax1.grid(True, alpha=0.3)
-    ax1.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{x/1000:.0f}K' if x < 1e6 else f'{x/1e6:.0f}M'))
+    ax1.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{x/1000:.0f}K' if x < 1e6 else f'{x/1e6:.1f}M'))
+    for v, t in zip(variants, oxi_time):
+        ax1.annotate(f'{t:.1f}s', xy=(v, t), xytext=(0, 12),
+                     textcoords='offset points', ha='center', fontsize=10,
+                     color=COLORS['primary'], fontweight='bold')
 
     # Panel B: Throughput
-    ax2.plot(variants, oxi_vps, 'o-', color=COLORS['primary'], linewidth=2.5, markersize=9, label='OxiVEP', zorder=3)
-    ax2.plot(variants, vep_vps, 's-', color=COLORS['vep'], linewidth=2.5, markersize=9, label='Ensembl VEP v115', zorder=3)
+    ax2.plot(variants, oxi_vps, 'o-', color=COLORS['primary'], linewidth=2.5, markersize=10, zorder=3)
     ax2.set_xscale('log')
-    ax2.set_yscale('log')
-    ax2.set_xlabel('Number of variants', fontsize=12)
+    ax2.set_xlabel('Number of variants (GIAB HG002)', fontsize=12)
     ax2.set_ylabel('Throughput (variants/sec)', fontsize=12)
-    ax2.set_title('B. Annotation Throughput', fontsize=14, fontweight='bold')
-    ax2.legend(fontsize=11)
+    ax2.set_title('B. Annotation Throughput', fontsize=13, fontweight='bold')
     ax2.grid(True, alpha=0.3)
-    ax2.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{x/1000:.0f}K' if x < 1e6 else f'{x/1e6:.0f}M'))
+    ax2.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{x/1000:.0f}K' if x < 1e6 else f'{x/1e6:.1f}M'))
     ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{x/1000:.0f}K' if x < 1e6 else f'{x/1e6:.1f}M'))
-
-    # Add speedup annotations
-    for v, ovps, vvps in zip(variants, oxi_vps, vep_vps):
-        speedup = ovps / vvps
-        ax2.annotate(f'{speedup:.0f}x', xy=(v, ovps), xytext=(0, 12),
-                     textcoords='offset points', ha='center', fontsize=9,
+    for v, vps in zip(variants, oxi_vps):
+        ax2.annotate(f'{vps:,.0f}', xy=(v, vps), xytext=(0, 12),
+                     textcoords='offset points', ha='center', fontsize=10,
                      color=COLORS['primary'], fontweight='bold')
 
     plt.tight_layout()
@@ -409,7 +402,7 @@ if __name__ == '__main__':
     print(f"Output dir: {os.path.abspath(FIG_DIR)}")
     print()
     fig1_architecture()
-    fig2_throughput_comparison()
+    fig2_throughput_scaling()
     fig3_vep_concordance()
     fig4_consequence_distribution()
     fig5_resource_usage()
