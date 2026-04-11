@@ -334,7 +334,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 12px;
+      font-size: 13px;
     }
     th {
       position: sticky;
@@ -343,7 +343,7 @@
       color: var(--text-dim);
       font-weight: 600;
       text-transform: uppercase;
-      font-size: 10px;
+      font-size: 11px;
       letter-spacing: 0.5px;
       padding: 10px 12px;
       text-align: left;
@@ -367,9 +367,9 @@
     /* Impact badges */
     .impact {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 3px 10px;
       border-radius: 4px;
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.3px;
@@ -382,9 +382,9 @@
     /* Consequence tags */
     .consequence-tag {
       display: inline-block;
-      padding: 2px 6px;
+      padding: 3px 8px;
       border-radius: 3px;
-      font-size: 11px;
+      font-size: 12px;
       font-family: monospace;
       background: var(--surface2);
       margin: 1px;
@@ -404,7 +404,7 @@
       padding: 16px;
     }
     .summary-card h3 {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--text-dim);
       margin-bottom: 12px;
     }
@@ -415,7 +415,7 @@
       margin-bottom: 6px;
     }
     .bar-label {
-      font-size: 11px;
+      font-size: 13px;
       font-family: monospace;
       width: 200px;
       text-align: right;
@@ -435,16 +435,17 @@
       transition: width 0.5s ease;
     }
     .bar-count {
-      font-size: 11px;
+      font-size: 13px;
       color: var(--text-dim);
       width: 40px;
+      font-weight: 600;
     }
 
     /* Raw output */
     .raw-output {
       padding: 16px;
       font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 11px;
+      font-size: 12px;
       white-space: pre;
       overflow-x: auto;
       max-height: 500px;
@@ -518,8 +519,8 @@
     .example-links span { font-size: 12px; color: var(--text-dim); }
     .example-pill {
       display: inline-block;
-      padding: 3px 12px;
-      font-size: 12px;
+      padding: 5px 14px;
+      font-size: 13px;
       font-weight: 500;
       color: var(--accent);
       background: rgba(108,122,238,0.08);
@@ -538,11 +539,11 @@
       background: var(--accent); color: #fff; font-weight: 700; font-size: 13px;
     }
     .advanced-toggle {
-      font-size: 12px; color: var(--text-dim); text-decoration: none; margin-top: 4px; display: inline-block;
+      font-size: 13px; color: var(--text-dim); text-decoration: none; margin-top: 8px; display: inline-block;
     }
     .advanced-toggle:hover { color: var(--accent); }
     .mane-badge {
-      display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600;
+      display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; white-space: nowrap;
     }
     .mane-badge-select { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
     .mane-badge-clinical { background: rgba(96,165,250,0.15); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
@@ -1424,13 +1425,25 @@ function extractSA(obj) {
   return Object.keys(sa).length > 0 ? sa : null;
 }
 
-function formatSAValue(val) {
+function formatSAValue(val, key) {
   if (val === null || val === undefined) return '-';
   if (typeof val === 'string') return val;
-  if (typeof val === 'number') return String(val);
+  if (typeof val === 'number') return typeof val === 'number' && !Number.isInteger(val) ? val.toFixed(4) : String(val);
   if (typeof val === 'boolean') return val ? 'Yes' : 'No';
-  if (Array.isArray(val)) return val.map(formatSAValue).join('; ');
+  if (Array.isArray(val)) return val.map(v => formatSAValue(v)).join('; ');
   if (typeof val === 'object') {
+    // Smart display for known SA sources
+    if (val.significance) {
+      // ClinVar-like: show significance prominently
+      const sig = Array.isArray(val.significance) ? val.significance.join('/') : val.significance;
+      const review = val.reviewStatus || '';
+      return sig + (review ? ' (' + review.replace(/_/g,' ') + ')' : '');
+    }
+    if (val.allAf !== undefined || val.af !== undefined) {
+      // gnomAD/population frequency: show allele frequency
+      const af = val.allAf ?? val.af ?? val.globalAf;
+      return af != null ? Number(af).toExponential(2) : '-';
+    }
     const parts = [];
     for (const [k, v] of Object.entries(val)) {
       if (v != null && v !== '') parts.push(`${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`);
