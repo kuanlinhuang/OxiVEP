@@ -396,21 +396,21 @@ Benchmarked on Apple M-series (ARM64), release build with LTO. Median of 3 runs,
 
 | Organism | Transcripts | Variants | Source | Time | Throughput |
 |----------|-------------|----------|--------|------|------------|
-| Yeast (R64, full genome) | 7,036 | 260,526 | Ensembl/SGD | 3.4s | **75,774 v/s** |
-| Drosophila (BDGP6, full) | 35,442 | 4,438,427 | DGRP2 | 66.7s | **66,569 v/s** |
-| Arabidopsis (TAIR10, full) | 54,013 | 12,883,854 | 1001 Genomes | 185.3s | **69,527 v/s** |
-| Mouse (GRCm39, full genome) | 142,626 | 125,504,904 | Ensembl/EVA | 1,478s | **84,889 v/s** |
-| Human full WGS (GRCh38) | 508,530 | 4,048,342 | GIAB HG002 | 98.9s | **40,940 v/s** |
+| Yeast (R64, full genome) | 7,036 | 260,526 | Ensembl/SGD | 3.0s | **85,934 v/s** |
+| Drosophila (BDGP6, full) | 35,442 | 4,438,427 | DGRP2 | 57.3s | **77,486 v/s** |
+| Arabidopsis (TAIR10, full) | 54,013 | 12,883,854 | 1001 Genomes | 168.7s | **76,378 v/s** |
+| Mouse (GRCm39, full genome) | 142,626 | 26,062,054 | MGP CAST/EiJ | 338.0s | **77,113 v/s** |
+| Human full WGS (GRCh38) | 508,530 | 4,048,342 | GIAB HG002 | 86.3s | **46,917 v/s** |
 
 ### vs. Ensembl VEP v115.1 (head-to-head, GIAB HG002 chr22)
 
 | Variants | fastVEP | VEP | Speedup |
 |----------|---------|-----|---------|
-| 1,000 | 0.39s | 1.28s | **3.3x** |
-| 5,000 | 0.45s | 13.3s | **29x** |
-| 10,000 | 0.74s | 29.2s | **40x** |
-| 50,000 | 2.08s | 204.4s | **98x** |
-| 4,048,342 (full WGS) | 98.9s | cannot complete | -- |
+| 1,000 | 0.40s | 1.06s | **2.6x** |
+| 5,000 | 0.47s | 13.9s | **29x** |
+| 10,000 | 0.67s | 30.3s | **45x** |
+| 50,000 | 1.59s | 206.1s | **130x** |
+| 4,048,342 (full WGS) | 86.3s | cannot complete | -- |
 | Peak memory (100K variants) | ~500 MB | **2.8 MB** |
 | Binary size | ~200 MB installed | **3.3 MB** |
 | Dependencies | Perl 5.22+, DBI, 10+ CPAN modules | **None** |

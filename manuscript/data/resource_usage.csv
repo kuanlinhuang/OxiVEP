@@ -1,7 +1,6 @@
 metric,value,unit
 binary_size,3.3,MB
-startup_time_yeast_7k,3.44,sec
-startup_time_drosophila_35k,66.67,sec
-startup_time_arabidopsis_54k,185.31,sec
-startup_time_mouse_143k,1478.46,sec
-startup_time_human_509k,98.88,sec
+startup_time_yeast_7k,3.03,sec
+startup_time_drosophila_35k,57.28,sec
+startup_time_mouse_143k,337.97,sec
+startup_time_human_509k,86.29,sec
