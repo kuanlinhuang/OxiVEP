@@ -1251,6 +1251,41 @@ let serverSaSources = []; // loaded SA sources (ClinVar, gnomAD, etc.)
 let builtinUploadedToServer = false; // track if we've uploaded the example GFF3
 
 // Detect backend on load, fetch available genomes, ensure transcripts are loaded
+// Turn a directory name like "hg38_ensembl_115" into a friendly label
+// "Human GRCh38 / hg38 (Ensembl 115)". Falls back to the raw name if unrecognized.
+function formatGenomeLabel(name) {
+  const lower = name.toLowerCase();
+  // Species/build detection
+  const parts = [];
+  let species = null;
+  if (lower.includes('grch38') || lower.includes('hg38')) species = 'Human GRCh38 / hg38';
+  else if (lower.includes('grch37') || lower.includes('hg19')) species = 'Human GRCh37 / hg19';
+  else if (lower.includes('t2t') || lower.includes('chm13')) species = 'Human T2T-CHM13v2.0';
+  else if (lower.includes('grcm39')) species = 'Mouse GRCm39';
+  else if (lower.includes('grcm38') || lower.includes('mm10')) species = 'Mouse GRCm38 / mm10';
+  else if (lower.includes('mratbn') || lower.includes('rnor')) species = 'Rat mRatBN7.2';
+  else if (lower.includes('grcz11')) species = 'Zebrafish GRCz11';
+  else if (lower.includes('bdgp6') || lower.includes('drosophila')) species = 'Fruit fly BDGP6';
+  else if (lower.includes('wbcel') || lower.includes('elegans')) species = 'C. elegans WBcel235';
+  else if (lower.includes('r64') || lower.includes('cerevisiae') || lower.includes('yeast')) species = 'Yeast R64-1-1';
+  else if (lower.includes('tair') || lower.includes('arabidopsis')) species = 'Arabidopsis TAIR10';
+  // Source detection
+  let source = null;
+  if (lower.includes('ensembl')) {
+    const m = name.match(/ensembl[_-]?(\d+)/i);
+    source = m ? `Ensembl ${m[1]}` : 'Ensembl';
+  } else if (lower.includes('gencode')) {
+    const m = name.match(/gencode[_-]?v?(\d+)/i);
+    source = m ? `GENCODE v${m[1]}` : 'GENCODE';
+  } else if (lower.includes('refseq')) {
+    source = 'RefSeq';
+  }
+  if (species) {
+    return source ? `${species} (${source})` : species;
+  }
+  return name; // fallback
+}
+
 async function checkBackend() {
   try {
     const r = await fetch('/api/status', { method: 'GET' });
@@ -1286,12 +1321,13 @@ async function checkBackend() {
       const opt = document.createElement('option');
       opt.value = 'server:' + g.name;
       const tags = [g.has_fasta ? 'FASTA' : null, g.has_sa ? 'SA' : null].filter(Boolean);
-      opt.textContent = g.name + (tags.length ? ' (' + tags.join(' + ') + ')' : '');
+      const label = formatGenomeLabel(g.name);
+      opt.textContent = label + (tags.length ? ' — ' + tags.join(' + ') : '');
       // Insert before "Upload custom" option
       sel.insertBefore(opt, sel.querySelector('option[value="upload"]'));
-      // Detect human genome for auto-selection
+      // Auto-select the first GRCh38 human genome
       const lower = g.name.toLowerCase();
-      if (!humanGenome && (lower.includes('human') || lower.includes('sapiens') || lower.includes('grch38') || lower.includes('hg38'))) {
+      if (!humanGenome && (lower.includes('grch38') || lower.includes('hg38'))) {
         humanGenome = g;
       }
     }
