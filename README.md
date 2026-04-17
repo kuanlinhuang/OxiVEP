@@ -415,14 +415,20 @@ Benchmarked on Apple M-series (ARM64), release build with LTO. Median of 3 runs,
 | Binary size | ~200 MB installed | **3.3 MB** |
 | Dependencies | Perl 5.22+, DBI, 10+ CPAN modules | **None** |
 
+## Citation
+
+If you use fastVEP in your research, please cite:
+
+**fastVEP: A Fast, Comprehensive Variant Effect Predictor Written in Rust**  
+Kuan-lin Huang  
+*bioRxiv* (2026)  
+doi: [https://doi.org/10.64898/2026.04.14.718452](https://doi.org/10.64898/2026.04.14.718452)  
+URL: [https://www.biorxiv.org/content/10.64898/2026.04.14.718452v1](https://www.biorxiv.org/content/10.64898/2026.04.14.718452v1)
+
 ## License
 
 Apache License 2.0
 
-## Related Tools
-
-- **[RastQC](https://doi.org/10.64898/2026.03.31.715630)** — High-performance sequencing quality control written in Rust (Huang, 2026)
-
 ## Acknowledgements
 
-fastVEP is inspired by [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html) by EMBL-EBI and [Illumina Nirvana](https://github.com/Illumina/Nirvana). The consequence prediction logic follows the Sequence Ontology term definitions and the Ensembl variant annotation framework.
+fastVEP is inspired by [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html) by EMBL-EBI and [Illumina Nirvana](https://github.com/Illumina/Nirvana). The consequence prediction logic follows the Sequence Ontology term definitions and the Ensembl variant annotation framework. The supplementary annotation system (fastSA v2) incorporates algorithms and encoding strategies from [echtvar](https://github.com/brentp/echtvar).
