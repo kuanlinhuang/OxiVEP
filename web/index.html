@@ -683,11 +683,6 @@
     <a href="https://labs.icahn.mssm.edu/kuanhuanglab/" target="_blank" rel="noopener">Huang Lab</a>
   </header>
 
-  <div class="hero">
-    <strong>fastVEP</strong> — high-performance variant effect prediction in Rust.
-    <span class="hero-accent">10–100&times; faster than VEP</span>, with MANE, HGVS, splice-site and consequence annotation.
-  </div>
-
   <div class="container">
     <!-- Step 1: Genome Selection -->
     <div class="input-section" style="margin-bottom:12px">
@@ -721,9 +716,6 @@
             <a class="example-pill" href="#" onclick="loadExample('coding');return false">OR4F5 coding (missense, frameshift, UTR)</a>
             <a class="example-pill" href="#" onclick="loadExample('splicing');return false">OR4F5 splice sites</a>
             <a class="example-pill" href="#" onclick="loadExample('noncoding');return false">lncRNA + intergenic</a>
-            <span style="margin-left:8px;color:var(--text-dim)">|</span>
-            <a class="example-pill" href="#" onclick="document.getElementById('vcfFile').click();return false">Upload VCF</a>
-            <input type="file" id="vcfFile" accept=".vcf,.vcf.gz" style="display:none" onchange="loadVcfFile(this)">
           </div>
         </div>
         <div class="controls">
@@ -733,24 +725,12 @@
             </div>
           </div>
           <div class="btn-row">
+            <button class="btn btn-secondary" onclick="document.getElementById('vcfFile').click();return false" style="flex:1">Upload VCF</button>
+            <input type="file" id="vcfFile" accept=".vcf,.vcf.gz" style="display:none" onchange="loadVcfFile(this)">
+          </div>
+          <div class="btn-row">
             <button class="btn btn-primary" id="btnAnnotate" onclick="annotate()" style="flex:1;padding:12px 28px;font-size:15px">Annotate</button>
             <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
-          </div>
-          <a href="#" class="advanced-toggle" onclick="toggleAdvanced();return false" id="advancedToggle">Advanced options &#9662;</a>
-          <div id="advancedOptions" style="display:none">
-            <div class="control-group">
-              <label>Output Format</label>
-              <select id="outputFormat" onchange="onFormatChange()">
-                <option value="table">Interactive Table</option>
-                <option value="vcf">VCF (CSQ field)</option>
-                <option value="tab">Tab-delimited</option>
-                <option value="json">JSON</option>
-              </select>
-            </div>
-            <div class="control-group">
-              <label>Upstream/Downstream Distance</label>
-              <input type="number" id="distance" value="5000" min="0" max="50000">
-            </div>
           </div>
         </div>
       </div>
@@ -1593,15 +1573,21 @@ async function annotate() {
   showLoading('Preparing variants…');
   setAnnotateBusy(true);
 
-  if (hasBackend) {
-    // Ensure server has transcripts loaded (upload builtin if needed)
-    if (serverTranscripts === 0) {
-      updateLoading('Loading gene model…');
-      await uploadBuiltinToServer();
+  try {
+    if (hasBackend) {
+      // Ensure server has transcripts loaded (upload builtin if needed)
+      if (serverTranscripts === 0) {
+        updateLoading('Loading gene model…');
+        await uploadBuiltinToServer();
+      }
+      await annotateBackend(vcfText);
+    } else {
+      annotateClientSide(vcfText);
     }
-    annotateBackend(vcfText);
-  } else {
-    annotateClientSide(vcfText);
+  } catch (e) {
+    hideLoading();
+    setAnnotateBusy(false);
+    showWarning('Annotation failed', e?.message || String(e));
   }
 }
 
@@ -1765,37 +1751,49 @@ function convertServerResults(results) {
 }
 
 function annotateClientSide(vcfText) {
-  const status = document.getElementById('statusBar');
   updateLoading('Parsing gene models…');
   setTimeout(() => {
-    const t0 = performance.now();
-    transcripts = parseGFF3(getGFF3Text());
-    updateLoading(`Loaded ${transcripts.length} transcripts. Annotating…`);
-    setTimeout(() => {
-      const variants = parseVCF(vcfText);
-      const distance = +document.getElementById('distance').value || 5000;
-      const pick = document.getElementById('optPick').checked;
-      allResults = [];
-      for (const v of variants) {
-        const preds = predict(v, transcripts, distance);
-        if (pick) {
-          const canonical = preds.filter(p => p.transcript?.canonical);
-          const picked = canonical.length > 0 ? canonical : preds.slice(0, 1);
-          const byAllele = {};
-          for (const p of picked) {
-            const key = p.allele;
-            if (!byAllele[key] || impactRank(p.impact) < impactRank(byAllele[key].impact)) byAllele[key] = p;
+    try {
+      const t0 = performance.now();
+      transcripts = parseGFF3(getGFF3Text());
+      updateLoading(`Loaded ${transcripts.length} transcripts. Annotating…`);
+      setTimeout(() => {
+        try {
+          const variants = parseVCF(vcfText);
+          const distanceInput = document.getElementById('distance');
+          const distance = distanceInput ? (+distanceInput.value || 5000) : 5000;
+          const pick = document.getElementById('optPick').checked;
+          allResults = [];
+          for (const v of variants) {
+            const preds = predict(v, transcripts, distance);
+            if (pick) {
+              const canonical = preds.filter(p => p.transcript?.canonical);
+              const picked = canonical.length > 0 ? canonical : preds.slice(0, 1);
+              const byAllele = {};
+              for (const p of picked) {
+                const key = p.allele;
+                if (!byAllele[key] || impactRank(p.impact) < impactRank(byAllele[key].impact)) byAllele[key] = p;
+              }
+              for (const p of Object.values(byAllele)) allResults.push({ variant: v, ...p });
+            } else {
+              for (const p of preds) allResults.push({ variant: v, ...p });
+            }
           }
-          for (const p of Object.values(byAllele)) allResults.push({ variant: v, ...p });
-        } else {
-          for (const p of preds) allResults.push({ variant: v, ...p });
+          const t1 = performance.now();
+          setAnnotateBusy(false);
+          checkMismatch(variants, transcripts);
+          showResults(variants.length, allResults.length, t1 - t0);
+        } catch (e) {
+          hideLoading();
+          setAnnotateBusy(false);
+          showWarning('Annotation failed', e?.message || String(e));
         }
-      }
-      const t1 = performance.now();
+      }, 10);
+    } catch (e) {
+      hideLoading();
       setAnnotateBusy(false);
-      checkMismatch(variants, transcripts);
-      showResults(variants.length, allResults.length, t1 - t0);
-    }, 10);
+      showWarning('Annotation failed', e?.message || String(e));
+    }
   }, 10);
 }
 
@@ -2060,8 +2058,13 @@ function buildOutputText(fmt) {
   return text;
 }
 
+function getOutputFormat() {
+  const el = document.getElementById('outputFormat');
+  return el ? el.value : 'table';
+}
+
 function renderRaw() {
-  const fmt = document.getElementById('outputFormat').value;
+  const fmt = getOutputFormat();
   document.getElementById('rawOutput').textContent = buildOutputText(fmt);
 }
 
@@ -2352,7 +2355,7 @@ function getGFF3Text() {
 
 // --- Output format change ---
 function onFormatChange() {
-  const fmt = document.getElementById('outputFormat').value;
+  const fmt = getOutputFormat();
   if (allResults.length > 0) {
     // Re-render raw output with new format
     renderRaw();
