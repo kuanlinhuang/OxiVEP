@@ -25,4 +25,6 @@ benchmarks/*.fastvep.cache
 genomes/*
 .gitignore
 
+# docs
+*stats.json
 *docx
